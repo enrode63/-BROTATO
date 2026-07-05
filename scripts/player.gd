@@ -166,7 +166,7 @@ func sell_weapon(index: int, wave: int) -> int:
 	if weapons.size() <= 1 or index < 0 or index >= weapons.size():
 		return 0
 	var w: Weapon = weapons[index]
-	var value := max(1, int(round((42.0 + float(wave) * 4.0) * 0.25)) * w.level)
+	var value: int = maxi(1, int(round((42.0 + float(wave) * 4.0) * 0.25)) * w.level)
 	weapons.remove_at(index)
 	w.queue_free()
 	_arrange_weapons()
@@ -347,8 +347,8 @@ func _input_direction() -> Vector2:
 func take_damage(amount: int) -> void:
 	if not _alive:
 		return
-	var reduced := max(0, amount - stat_armor)          # 등: 방어력
-	var dmg := max(0, int(round(reduced * _damage_taken_mult)))  # 쑤마왕: 받는 데미지 감소
+	var reduced: int = maxi(0, amount - stat_armor)          # 척추: 방어력
+	var dmg: int = maxi(0, int(round(reduced * _damage_taken_mult)))  # 쑤마왕: 받는 데미지 감소
 	health = max(0, health - dmg)
 	health_changed.emit(health, max_health)
 	queue_redraw()

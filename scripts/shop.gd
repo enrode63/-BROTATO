@@ -77,7 +77,12 @@ func _stat_offer() -> Dictionary:
 	if randf() < 0.16:
 		return {"kind": "heal", "id": "heal", "name": "체력 회복", "desc": "HP 25% 회복",
 			"icon": "res://assets/stat_heal.png", "price": _price(22, 2, 1), "sold": false}
-	var pool := STAT_ITEMS.filter(_stat_allowed)
+	var pool: Array = []
+	for item in STAT_ITEMS:
+		if _stat_allowed(item):
+			pool.append(item)
+	if pool.is_empty():
+		pool = STAT_ITEMS
 	var s: Dictionary = pool.pick_random()
 	return {"kind": "stat", "id": s["id"], "name": s["name"], "desc": s["desc"],
 		"icon": s["icon"], "price": _price(14, 3, 10), "sold": false}
@@ -93,9 +98,9 @@ func _stat_allowed(item: Dictionary) -> bool:
 ## Base price, per-wave growth, and a small random spread — then halved (50% off).
 ## Prices climb as waves go on.
 func _price(base: int, per_wave: int, spread: int) -> int:
-	var raw := base + _wave * per_wave + (randi() % max(spread, 1))
+	var raw: int = base + _wave * per_wave + (randi() % maxi(spread, 1))
 	raw = int(round(float(raw) * (1.0 + 0.04 * float(_wave))))  # extra late-game growth
-	return max(1, int(round(float(raw) * 0.5)))
+	return maxi(1, int(round(float(raw) * 0.5)))
 
 
 # --- UI ----------------------------------------------------------------------
