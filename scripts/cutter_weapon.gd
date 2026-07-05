@@ -1,0 +1,35 @@
+class_name CutterWeapon
+extends Weapon
+## "시운이의 커터칼" — melee. Damages every enemy inside a short radius when
+## it swings. Fast cooldown, high per-hit damage, tiny range.
+
+var _swing_left: float = 0.0
+
+
+func _init() -> void:
+	cooldown = 0.5
+	attack_range = 72.0
+	damage = 16
+
+
+func _process(delta: float) -> void:
+	super._process(delta)
+	if _swing_left > 0.0:
+		_swing_left -= delta
+		if _swing_left <= 0.0:
+			queue_redraw()
+
+
+func _fire(_target: Node2D) -> void:
+	for e in get_tree().get_nodes_in_group("enemy"):
+		if not is_instance_valid(e):
+			continue
+		if global_position.distance_to(e.global_position) <= attack_range and e.has_method("take_damage"):
+			e.take_damage(damage)
+	_swing_left = 0.14
+	queue_redraw()
+
+
+func _draw() -> void:
+	if _swing_left > 0.0:
+		draw_arc(Vector2.ZERO, attack_range, 0.0, TAU, 28, Color(0.95, 0.95, 0.95, 0.55), 3.0)

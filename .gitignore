@@ -1,0 +1,9 @@
+# Godot 4 import cache & generated data
+.godot/
+
+# CI build output
+/build/
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
