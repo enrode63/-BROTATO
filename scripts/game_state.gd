@@ -13,6 +13,14 @@ var wave: int = 0
 var selected_character_id: String = "ssumawang"
 ## How many times the shop reroll has been used this run (drives reroll price).
 var reroll_count: int = 0
+var kills: int = 0
+var boss_kills: int = 0
+
+
+func register_kill(is_boss: bool = false) -> void:
+	kills += 1
+	if is_boss:
+		boss_kills += 1
 
 
 func spend(amount: int) -> bool:
@@ -43,6 +51,8 @@ func reset() -> void:
 	xp = 0
 	wave = 0
 	reroll_count = 0
+	kills = 0
+	boss_kills = 0
 	gold_changed.emit(gold)
 	xp_changed.emit(xp)
 	wave_changed.emit(wave)

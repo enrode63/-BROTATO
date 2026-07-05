@@ -7,17 +7,23 @@ signal continue_pressed
 
 const REROLL_PRICES := [10, 30, 50, 100, 200, 300]
 const STAT_ITEMS := [
-	{"id": "hand", "name": "손", "desc": "데미지 +3%"},
-	{"id": "lung", "name": "폐", "desc": "최대 체력 +2"},
-	{"id": "leg", "name": "다리", "desc": "이동속도 +3%"},
-	{"id": "back", "name": "등", "desc": "방어력 +1"},
-	{"id": "eye", "name": "눈", "desc": "사거리 +1"},
+	{"id": "tricep", "name": "삼두근", "desc": "데미지 +5%", "icon": "res://assets/stat_tricep.png"},
+	{"id": "leg", "name": "다리", "desc": "이동속도 +3%", "icon": "res://assets/stat_leg2.png"},
+	{"id": "heart", "name": "심장", "desc": "최대 체력 +5%", "icon": "res://assets/stat_heart.png"},
+	{"id": "spine", "name": "척추", "desc": "방어력 +5", "icon": "res://assets/stat_spine.png"},
+	{"id": "tooth", "name": "이빨", "desc": "흡혈 +1%", "icon": "res://assets/stat_tooth.png"},
+	{"id": "monkey", "name": "쌀숭이", "desc": "추가 골드 +1", "icon": "res://assets/stat_monkey.png"},
 ]
 const WEAPON_ITEMS := [
 	{"id": "cucumber", "name": "우람한 오이", "desc": "관통 원거리 창", "icon": "res://assets/weapon_cucumber.png"},
 	{"id": "cards", "name": "트페의 카드", "desc": "랜덤 카드 효과", "icon": "res://assets/weapon_cards.png"},
-	{"id": "cutter", "name": "시운이의 커터칼", "desc": "근접 광역", "icon": "res://assets/weapon_cutter.png"},
+	{"id": "cutter", "name": "커터칼", "desc": "근접 광역", "icon": "res://assets/weapon_cutter.png"},
 	{"id": "camera", "name": "카메라", "desc": "샷건 광역", "icon": "res://assets/weapon_camera.png"},
+]
+const THROWABLE_ITEMS := [
+	{"id": "grenade", "name": "수류탄", "desc": "광역 폭발 (1키)", "icon": "res://assets/throw_grenade.png"},
+	{"id": "flashbang", "name": "섬광탄", "desc": "전체 3초 속박 (2키)", "icon": "res://assets/throw_flash.png"},
+	{"id": "molotov", "name": "화염병", "desc": "범위 지속 화염 (3키)", "icon": "res://assets/throw_molotov.png"},
 ]
 
 var _player: Player
@@ -51,23 +57,31 @@ func _ready() -> void:
 # --- offers ------------------------------------------------------------------
 
 func _generate_offers() -> void:
-	_offers.clear()
-	for i in 4:
-		_offers.append(_random_offer())
+	# Fixed slot layout: [무기, 무기, 투척물, 나머지, 나머지].
+	_offers = [_weapon_offer(), _weapon_offer(), _throwable_offer(), _stat_offer(), _stat_offer()]
 
 
-func _random_offer() -> Dictionary:
-	var r := randf()
-	if r < 0.18 and _player.weapons.size() < Player.MAX_WEAPONS:
-		var w: Dictionary = WEAPON_ITEMS.pick_random()
-		return {"kind": "weapon", "id": w["id"], "name": w["name"], "desc": w["desc"],
-			"icon": w["icon"], "price": _halve(42 + _wave * 4 + randi() % 16), "sold": false}
-	elif r < 0.32:
+func _weapon_offer() -> Dictionary:
+	if _player.weapons.size() >= Player.MAX_WEAPONS:
+		return _stat_offer()
+	var w: Dictionary = WEAPON_ITEMS.pick_random()
+	return {"kind": "weapon", "id": w["id"], "name": w["name"], "desc": w["desc"],
+		"icon": w["icon"], "price": _halve(42 + _wave * 4 + randi() % 16), "sold": false}
+
+
+func _throwable_offer() -> Dictionary:
+	var t: Dictionary = THROWABLE_ITEMS.pick_random()
+	return {"kind": "throwable", "id": t["id"], "name": t["name"], "desc": t["desc"],
+		"icon": t["icon"], "amount": 2, "price": _halve(28 + _wave * 3 + randi() % 10), "sold": false}
+
+
+func _stat_offer() -> Dictionary:
+	if randf() < 0.16:
 		return {"kind": "heal", "id": "heal", "name": "체력 회복", "desc": "HP 25% 회복",
 			"icon": "res://assets/stat_heal.png", "price": _halve(22 + _wave * 2), "sold": false}
 	var s: Dictionary = STAT_ITEMS.pick_random()
 	return {"kind": "stat", "id": s["id"], "name": s["name"], "desc": s["desc"],
-		"icon": "res://assets/stat_%s.png" % s["id"], "price": _halve(14 + _wave * 3 + randi() % 10), "sold": false}
+		"icon": s["icon"], "price": _halve(14 + _wave * 3 + randi() % 10), "sold": false}
 
 
 func _halve(v: int) -> int:
@@ -116,8 +130,8 @@ func _build_ui() -> void:
 	root.add_child(_reroll_btn)
 
 	_cards_row = HBoxContainer.new()
-	_cards_row.add_theme_constant_override("separation", 16)
-	_cards_row.position = Vector2(40, 84)
+	_cards_row.add_theme_constant_override("separation", 12)
+	_cards_row.position = Vector2(36, 84)
 	root.add_child(_cards_row)
 
 	# inventory (bottom-left)
@@ -178,7 +192,7 @@ func _make_card(index: int) -> Panel:
 	var accent := _kind_color(o["kind"])
 
 	var card := Panel.new()
-	card.custom_minimum_size = Vector2(196, 366)
+	card.custom_minimum_size = Vector2(158, 366)
 	card.clip_contents = true
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = Color(0.14, 0.16, 0.22, 1.0)
@@ -199,9 +213,10 @@ func _make_card(index: int) -> Panel:
 	var name_lbl := Label.new()
 	name_lbl.text = o["name"]
 	name_lbl.add_theme_font_override("font", _font_display)
-	name_lbl.add_theme_font_size_override("font_size", 20)
+	name_lbl.add_theme_font_size_override("font_size", 18)
 	name_lbl.add_theme_color_override("font_color", accent)
 	name_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	name_lbl.autowrap_mode = TextServer.AUTOWRAP_OFF
 	box.add_child(name_lbl)
 
 	var art := TextureRect.new()
@@ -239,11 +254,50 @@ func _rebuild_inventory() -> void:
 		var slot := WeaponSlot.new()
 		_inv_row.add_child(slot)
 		slot.setup(self, i, w.icon_path, w.level)
+	# throwables (non-draggable, show remaining count)
+	for t in THROWABLE_ITEMS:
+		var n := int(_player.throwable_counts.get(t["id"], 0))
+		if n <= 0:
+			continue
+		_inv_row.add_child(_throwable_slot(t["icon"], n))
+
+
+func _throwable_slot(icon: String, count: int) -> Panel:
+	var p := Panel.new()
+	p.custom_minimum_size = Vector2(66, 66)
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.24, 0.15, 0.15, 1.0)
+	sb.set_corner_radius_all(8)
+	sb.set_border_width_all(2)
+	sb.border_color = Color(0.95, 0.4, 0.35, 0.6)
+	p.add_theme_stylebox_override("panel", sb)
+	var art := TextureRect.new()
+	art.texture = load(icon)
+	art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	art.set_anchors_preset(Control.PRESET_FULL_RECT)
+	art.offset_left = 6
+	art.offset_top = 6
+	art.offset_right = -6
+	art.offset_bottom = -6
+	art.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	p.add_child(art)
+	var cnt := Label.new()
+	cnt.text = "x%d" % count
+	cnt.add_theme_font_size_override("font_size", 14)
+	cnt.add_theme_color_override("font_color", Color.WHITE)
+	cnt.add_theme_constant_override("outline_size", 4)
+	cnt.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
+	cnt.position = Vector2(40, 44)
+	cnt.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	p.add_child(cnt)
+	return p
 
 
 func _kind_color(kind: String) -> Color:
 	match kind:
 		"weapon": return Color(0.95, 0.55, 0.30)
+		"throwable": return Color(0.95, 0.40, 0.35)
 		"heal": return Color(0.35, 0.85, 0.45)
 		_: return Color(0.55, 0.65, 1.0)
 
@@ -258,11 +312,15 @@ func _on_buy(index: int) -> void:
 		return
 	if not GameState.spend(int(o["price"])):
 		return
-	if o["kind"] == "weapon":
-		_player.add_weapon(_player.make_weapon(o["id"]))
-		_rebuild_inventory()
-	else:
-		_player.apply_upgrade(o["id"])
+	match o["kind"]:
+		"weapon":
+			_player.add_weapon(_player.make_weapon(o["id"]))
+			_rebuild_inventory()
+		"throwable":
+			_player.add_throwable(o["id"], int(o.get("amount", 2)))
+			_rebuild_inventory()
+		_:
+			_player.apply_upgrade(o["id"])
 	o["sold"] = true
 	_refresh()
 
@@ -314,7 +372,8 @@ func _update_stats() -> void:
 		"데미지       +%d%%" % int(_player.stat_damage_pct),
 		"이동속도     +%d%%" % int(_player.stat_speed_pct),
 		"방어력       %d" % _player.stat_armor,
-		"사거리       +%d" % int(_player.stat_range / 12.0),
+		"흡혈         +%d%%" % int(_player.stat_lifesteal),
+		"추가 골드    +%d" % _player.stat_bonus_gold,
 		"",
 		"무기         %d / %d" % [_player.weapons.size(), Player.MAX_WEAPONS],
 		"경험치       %d" % GameState.xp,

@@ -39,13 +39,20 @@ var _spear_angle: float = 0.0
 
 # --- Shop stats ---
 const MAX_WEAPONS := 6
-var stat_damage_pct: float = 0.0   ## 손: 데미지 +3%씩
-var stat_bonus_hp: int = 0         ## 폐: 최대 체력 +2씩
+var base_max_health: int = 100
+var stat_damage_pct: float = 0.0   ## 삼두근: 데미지 +5%씩
+var stat_hp_pct: float = 0.0       ## 심장: 최대 체력 +5%씩
+var stat_bonus_hp: int = 0         ## (구) 폐: 최대 체력 +2씩
 var stat_speed_pct: float = 0.0    ## 다리: 이동속도 +3%씩
-var stat_armor: int = 0            ## 등: 방어력 +1씩
+var stat_armor: int = 0            ## 척추: 방어력 +5씩
 var stat_range: float = 0.0        ## 눈: 사거리 +12px씩
+var stat_lifesteal: float = 0.0    ## 이빨: 흡혈 +1%씩
+var stat_bonus_gold: int = 0       ## 쌀숭이: 추가 골드 +1씩
 var weapons: Array = []
+var throwable_counts: Dictionary = {"grenade": 0, "flashbang": 0, "molotov": 0}
+var input_enabled: bool = true     ## false while the shop is open
 var _start_weapon_id: String = "camera"
+var _lifesteal_accum: float = 0.0
 
 
 func _ready() -> void:
@@ -62,7 +69,8 @@ func _apply_character() -> void:
 	var id := character_id if character_id != "" else GameState.selected_character_id
 	var c := Characters.get_by_id(id)
 	texture_path = c["texture"]
-	max_health = int(round(BASE_MAX_HEALTH * float(c["health_mult"])))
+	base_max_health = int(round(BASE_MAX_HEALTH * float(c["health_mult"])))
+	max_health = base_max_health
 	_damage_taken_mult = float(c["damage_taken_mult"])
 	boss_damage_mult = float(c["boss_damage_mult"])
 	_bodyslam = c.get("bodyslam", false)
@@ -151,18 +159,63 @@ func merge_weapons(from_idx: int, to_idx: int) -> bool:
 ## Apply a shop upgrade by id. Returns false only for unknown ids.
 func apply_upgrade(id: String) -> bool:
 	match id:
-		"hand": stat_damage_pct += 3.0
-		"lung":
-			stat_bonus_hp += 2
-			max_health += 2
-			health += 2
+		"tricep": stat_damage_pct += 5.0
 		"leg": stat_speed_pct += 3.0
+		"heart": _add_hp_pct(5.0)
+		"spine": stat_armor += 5
+		"tooth": stat_lifesteal += 1.0
+		"monkey": stat_bonus_gold += 1
+		"heal": health = min(max_health, health + int(ceil(max_health * 0.25)))
+		# legacy ids
+		"hand": stat_damage_pct += 3.0
+		"lung": _add_hp_pct(2.0)
 		"back": stat_armor += 1
 		"eye": stat_range += 12.0
-		"heal": health = min(max_health, health + int(ceil(max_health * 0.25)))
 		_: return false
 	health_changed.emit(health, max_health)
 	return true
+
+
+func _add_hp_pct(amount: float) -> void:
+	stat_hp_pct += amount
+	var new_max := int(round(base_max_health * (1.0 + stat_hp_pct / 100.0)))
+	var diff := new_max - max_health
+	max_health = new_max
+	health += diff
+
+
+func lifesteal_heal(damage_dealt: int) -> void:
+	if stat_lifesteal <= 0.0 or not _alive:
+		return
+	_lifesteal_accum += float(damage_dealt) * stat_lifesteal / 100.0
+	var whole := int(_lifesteal_accum)
+	if whole >= 1:
+		_lifesteal_accum -= float(whole)
+		health = min(max_health, health + whole)
+		health_changed.emit(health, max_health)
+
+
+func add_throwable(id: String, count: int) -> void:
+	throwable_counts[id] = int(throwable_counts.get(id, 0)) + count
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if not input_enabled or not _alive:
+		return
+	if event is InputEventKey and event.pressed and not event.echo:
+		match event.keycode:
+			KEY_1: _throw("grenade")
+			KEY_2: _throw("flashbang")
+			KEY_3: _throw("molotov")
+
+
+func _throw(id: String) -> void:
+	if int(throwable_counts.get(id, 0)) <= 0:
+		return
+	throwable_counts[id] -= 1
+	var t := Throwable.new()
+	t.setup(id, global_position, get_global_mouse_position())
+	get_tree().current_scene.add_child(t)
 
 
 func _physics_process(delta: float) -> void:

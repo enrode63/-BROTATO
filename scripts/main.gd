@@ -40,7 +40,7 @@ func _process(delta: float) -> void:
 			_process_wave(delta)
 		State.GAMEOVER:
 			if Input.is_physical_key_pressed(KEY_R):
-				get_tree().reload_current_scene()
+				get_tree().change_scene_to_file("res://scenes/character_select.tscn")
 	_update_hud()
 
 
@@ -85,6 +85,7 @@ func _open_shop() -> void:
 	_center_label.text = ""
 	if is_instance_valid(player):
 		player.set_physics_process(false)
+		player.input_enabled = false
 	var shop := Shop.new()
 	shop.setup(player, wave)
 	shop.continue_pressed.connect(_on_shop_continue)
@@ -94,6 +95,7 @@ func _open_shop() -> void:
 func _on_shop_continue() -> void:
 	if is_instance_valid(player):
 		player.set_physics_process(true)
+		player.input_enabled = true
 	_start_wave()
 
 
@@ -291,6 +293,9 @@ func _update_hud() -> void:
 
 func _on_player_died() -> void:
 	state = State.GAMEOVER
-	_center_label.text = "GAME OVER\nWave %d 도달\nR 키로 재시작" % wave
+	if is_instance_valid(player):
+		player.input_enabled = false
+	_center_label.text = "GAME OVER\n\n도달 웨이브: %d\n처치한 몹: %d\n보스 처치: %d\n\nR 키: 시작 화면으로" % [
+		wave, GameState.kills, GameState.boss_kills]
 	for e in get_tree().get_nodes_in_group("enemy"):
 		e.set_physics_process(false)

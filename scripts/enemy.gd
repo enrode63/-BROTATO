@@ -183,6 +183,8 @@ func apply_stun(seconds: float) -> void:
 func take_damage(amount: int) -> void:
 	health -= amount
 	_spawn_damage_number(amount)
+	if _player != null and is_instance_valid(_player) and _player.has_method("lifesteal_heal"):
+		_player.lifesteal_heal(amount)
 	queue_redraw()
 	if health <= 0:
 		_die()
@@ -198,8 +200,12 @@ func _spawn_damage_number(amount: int) -> void:
 
 
 func _die() -> void:
+	var bonus := 0
+	if _player is Player:
+		bonus = (_player as Player).stat_bonus_gold
+	GameState.register_kill(false)
 	var p := GoldPickup.new()
-	p.setup(gold_reward)
+	p.setup(gold_reward + bonus)
 	p.global_position = global_position + Vector2(_rng.randf_range(-10.0, 10.0), _rng.randf_range(-10.0, 10.0))
 	get_tree().current_scene.add_child(p)
 	queue_free()
