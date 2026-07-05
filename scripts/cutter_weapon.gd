@@ -10,6 +10,7 @@ func _init() -> void:
 	cooldown = 0.5
 	attack_range = 72.0
 	damage = 16
+	icon_path = "res://assets/weapon_cutter.png"
 
 
 func _process(delta: float) -> void:
@@ -21,15 +22,17 @@ func _process(delta: float) -> void:
 
 
 func _fire(_target: Node2D) -> void:
+	var dmg := effective_damage(damage)
+	var reach := effective_range()
 	for e in get_tree().get_nodes_in_group("enemy"):
 		if not is_instance_valid(e):
 			continue
-		if global_position.distance_to(e.global_position) <= attack_range and e.has_method("take_damage"):
-			e.take_damage(damage)
+		if global_position.distance_to(e.global_position) <= reach and e.has_method("take_damage"):
+			e.take_damage(dmg)
 	_swing_left = 0.14
 	queue_redraw()
 
 
 func _draw() -> void:
 	if _swing_left > 0.0:
-		draw_arc(Vector2.ZERO, attack_range, 0.0, TAU, 28, Color(0.95, 0.95, 0.95, 0.55), 3.0)
+		draw_arc(Vector2.ZERO, effective_range(), 0.0, TAU, 28, Color(0.95, 0.95, 0.95, 0.55), 3.0)

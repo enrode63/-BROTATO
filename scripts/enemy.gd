@@ -35,6 +35,7 @@ var _attack_cooldown: float = 0.0
 var _has_sprite: bool = false
 var _knockback: Vector2 = Vector2.ZERO
 var _age: float = 0.0
+var _stun: float = 0.0
 var _fleeing: bool = false
 var _wander_target: Vector2 = Vector2.ZERO
 var _repick_cd: float = 0.0
@@ -72,6 +73,17 @@ func _build_sprite() -> void:
 
 func _physics_process(delta: float) -> void:
 	_age += delta
+
+	# 스턴(골드 카드): 잠깐 멈춘다. 넉백은 계속 받는다.
+	if _stun > 0.0:
+		_stun -= delta
+		modulate = Color(1.0, 1.0, 0.5)
+		velocity = _knockback
+		move_and_slide()
+		_knockback = _knockback.move_toward(Vector2.ZERO, KNOCKBACK_DECAY * delta)
+		if _stun <= 0.0:
+			modulate = Color.WHITE
+		return
 
 	# 황금 고블린: 도망치는 중이면 맵 밖으로 이탈 후 사라진다.
 	if _fleeing:
@@ -162,6 +174,10 @@ func _random_arena_point() -> Vector2:
 
 func apply_knockback(impulse: Vector2) -> void:
 	_knockback = impulse
+
+
+func apply_stun(seconds: float) -> void:
+	_stun = maxf(_stun, seconds)
 
 
 func take_damage(amount: int) -> void:

@@ -16,6 +16,7 @@ func setup(dir: Vector2, dmg: int, spd: float) -> void:
 
 
 func _ready() -> void:
+	add_to_group("enemy_bullet")
 	var shape := CollisionShape2D.new()
 	var circle := CircleShape2D.new()
 	circle.radius = _radius

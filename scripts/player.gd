@@ -37,6 +37,15 @@ var _spear_cd_left: float = 0.0
 var _spear_flash: float = 0.0
 var _spear_angle: float = 0.0
 
+# --- Shop stats ---
+const MAX_WEAPONS := 6
+var stat_damage_pct: float = 0.0   ## 손: 데미지 +3%씩
+var stat_bonus_hp: int = 0         ## 폐: 최대 체력 +2씩
+var stat_speed_pct: float = 0.0    ## 다리: 이동속도 +3%씩
+var stat_armor: int = 0            ## 등: 방어력 +1씩
+var stat_range: float = 0.0        ## 눈: 사거리 +12px씩
+var weapons: Array = []
+
 
 func _ready() -> void:
 	_apply_character()
@@ -86,15 +95,59 @@ func _build_collision() -> void:
 
 
 func _attach_weapons() -> void:
-	# MVP loadout: the Camera (shotgun) and the Cutter knife (melee).
-	add_child(CameraWeapon.new())
-	add_child(CutterWeapon.new())
+	# Starting loadout.
+	add_weapon(CameraWeapon.new())
+	add_weapon(CutterWeapon.new())
+	add_weapon(CucumberWeapon.new())
+	add_weapon(TpeCardWeapon.new())
+
+
+func add_weapon(w: Weapon) -> bool:
+	if weapons.size() >= MAX_WEAPONS:
+		return false
+	weapons.append(w)
+	add_child(w)
+	_arrange_weapons()
+	return true
+
+
+func _arrange_weapons() -> void:
+	for i in weapons.size():
+		weapons[i].slot_index = i
+		weapons[i].slot_count = weapons.size()
+
+
+func make_weapon(id: String) -> Weapon:
+	match id:
+		"camera": return CameraWeapon.new()
+		"cutter": return CutterWeapon.new()
+		"cucumber": return CucumberWeapon.new()
+		"cards": return TpeCardWeapon.new()
+	return CameraWeapon.new()
+
+
+## Apply a shop upgrade by id. Returns false only for unknown ids.
+func apply_upgrade(id: String) -> bool:
+	match id:
+		"hand": stat_damage_pct += 3.0
+		"lung":
+			stat_bonus_hp += 2
+			max_health += 2
+			health += 2
+		"leg": stat_speed_pct += 3.0
+		"back": stat_armor += 1
+		"eye": stat_range += 12.0
+		"heal": health = min(max_health, health + int(ceil(max_health * 0.25)))
+		_: return false
+	health_changed.emit(health, max_health)
+	return true
 
 
 func _physics_process(delta: float) -> void:
 	if not _alive:
 		return
-	velocity = _input_direction() * move_speed
+	var speed := move_speed * (1.0 + stat_speed_pct / 100.0)
+	velocity = _input_direction() * speed
 	move_and_slide()
 	# Keep the player inside the arena.
 	global_position.x = clampf(global_position.x, bounds.position.x + body_radius, bounds.end.x - body_radius)
@@ -181,7 +234,8 @@ func _input_direction() -> Vector2:
 func take_damage(amount: int) -> void:
 	if not _alive:
 		return
-	var dmg := max(0, int(round(amount * _damage_taken_mult)))
+	var reduced := max(0, amount - stat_armor)          # 등: 방어력
+	var dmg := max(0, int(round(reduced * _damage_taken_mult)))  # 쑤마왕: 받는 데미지 감소
 	health = max(0, health - dmg)
 	health_changed.emit(health, max_health)
 	queue_redraw()

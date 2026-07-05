@@ -2,11 +2,10 @@ extends Node2D
 ## Game root: builds the arena, spawns the player, runs the endless wave loop,
 ## and drives the HUD. Shop / bosses / extra weapons come in later milestones.
 
-enum State { WAVE, BREAK, GAMEOVER }
+enum State { WAVE, SHOP, GAMEOVER }
 
 const ARENA := Vector2(1152, 648)
 const WAVE_DURATION := 20.0
-const BREAK_DURATION := 3.0
 
 var state: int = State.WAVE
 var wave: int = 0
@@ -39,8 +38,6 @@ func _process(delta: float) -> void:
 	match state:
 		State.WAVE:
 			_process_wave(delta)
-		State.BREAK:
-			_process_break(delta)
 		State.GAMEOVER:
 			if Input.is_physical_key_pressed(KEY_R):
 				get_tree().reload_current_scene()
@@ -77,15 +74,27 @@ func _end_wave() -> void:
 			p.force_collect()
 	for e in get_tree().get_nodes_in_group("enemy"):
 		e.queue_free()
-	state = State.BREAK
-	timer = BREAK_DURATION
-	_center_label.text = "WAVE %d CLEAR\n(다음 웨이브 준비중...)" % wave
+	# also clear stray projectiles / coins already collected above
+	for b in get_tree().get_nodes_in_group("enemy_bullet"):
+		b.queue_free()
+	_open_shop()
 
 
-func _process_break(delta: float) -> void:
-	timer -= delta
-	if timer <= 0.0:
-		_start_wave()
+func _open_shop() -> void:
+	state = State.SHOP
+	_center_label.text = ""
+	if is_instance_valid(player):
+		player.set_physics_process(false)
+	var shop := Shop.new()
+	shop.setup(player, wave)
+	shop.continue_pressed.connect(_on_shop_continue)
+	add_child(shop)
+
+
+func _on_shop_continue() -> void:
+	if is_instance_valid(player):
+		player.set_physics_process(true)
+	_start_wave()
 
 
 func _spawn_enemy() -> void:
@@ -275,8 +284,6 @@ func _update_hud() -> void:
 	_wave_label.text = "WAVE %d" % wave
 	match state:
 		State.WAVE:
-			_timer_label.text = str(int(ceil(maxf(timer, 0.0))))
-		State.BREAK:
 			_timer_label.text = str(int(ceil(maxf(timer, 0.0))))
 		_:
 			_timer_label.text = ""

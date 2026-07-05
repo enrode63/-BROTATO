@@ -11,6 +11,16 @@ var xp: int = 0
 var wave: int = 0
 ## Chosen on the character-select screen; read by the player on game start.
 var selected_character_id: String = "ssumawang"
+## How many times the shop reroll has been used this run (drives reroll price).
+var reroll_count: int = 0
+
+
+func spend(amount: int) -> bool:
+	if gold < amount:
+		return false
+	gold -= amount
+	gold_changed.emit(gold)
+	return true
 
 
 func add_gold(amount: int) -> void:
@@ -32,6 +42,7 @@ func reset() -> void:
 	gold = 0
 	xp = 0
 	wave = 0
+	reroll_count = 0
 	gold_changed.emit(gold)
 	xp_changed.emit(xp)
 	wave_changed.emit(wave)
