@@ -7,6 +7,7 @@ var _swing_left: float = 0.0
 
 
 func _init() -> void:
+	weapon_id = "cutter"
 	cooldown = 0.5
 	attack_range = 72.0
 	damage = 16

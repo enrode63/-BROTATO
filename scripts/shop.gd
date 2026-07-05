@@ -1,7 +1,7 @@
 class_name Shop
 extends CanvasLayer
-## Between-wave shop overlay: buy stat upgrades / health / weapons, reroll the
-## offers, then press 이동 to start the next wave.
+## Between-wave shop: buy stat upgrades / health / weapons, reroll the offers,
+## merge duplicate weapons in the inventory, then press 이동 for the next wave.
 
 signal continue_pressed
 
@@ -17,6 +17,7 @@ const WEAPON_ITEMS := [
 	{"id": "cucumber", "name": "우람한 오이", "desc": "관통 원거리 창", "icon": "res://assets/weapon_cucumber.png"},
 	{"id": "cards", "name": "트페의 카드", "desc": "랜덤 카드 효과", "icon": "res://assets/weapon_cards.png"},
 	{"id": "cutter", "name": "시운이의 커터칼", "desc": "근접 광역", "icon": "res://assets/weapon_cutter.png"},
+	{"id": "camera", "name": "카메라", "desc": "샷건 광역", "icon": "res://assets/weapon_camera.png"},
 ]
 
 var _player: Player
@@ -27,6 +28,7 @@ var _font_display: Font
 var _gold_label: Label
 var _reroll_btn: Button
 var _cards_row: HBoxContainer
+var _inv_row: HBoxContainer
 var _stats_label: Label
 
 
@@ -38,9 +40,11 @@ func setup(player: Player, wave: int) -> void:
 func _ready() -> void:
 	layer = 10
 	_font_display = load("res://fonts/BlackHanSans-Regular.ttf")
+	GameState.reroll_count = 0  # reroll price resets every shop visit
 	_generate_offers()
 	_build_ui()
 	_rebuild_cards()
+	_rebuild_inventory()
 	_refresh()
 
 
@@ -54,16 +58,20 @@ func _generate_offers() -> void:
 
 func _random_offer() -> Dictionary:
 	var r := randf()
-	if r < 0.16 and _player.weapons.size() < Player.MAX_WEAPONS:
+	if r < 0.18 and _player.weapons.size() < Player.MAX_WEAPONS:
 		var w: Dictionary = WEAPON_ITEMS.pick_random()
 		return {"kind": "weapon", "id": w["id"], "name": w["name"], "desc": w["desc"],
-			"icon": w["icon"], "price": 42 + _wave * 4 + randi() % 16, "sold": false}
-	elif r < 0.30:
+			"icon": w["icon"], "price": _halve(42 + _wave * 4 + randi() % 16), "sold": false}
+	elif r < 0.32:
 		return {"kind": "heal", "id": "heal", "name": "체력 회복", "desc": "HP 25% 회복",
-			"icon": "", "price": 22 + _wave * 2, "sold": false}
+			"icon": "res://assets/stat_heal.png", "price": _halve(22 + _wave * 2), "sold": false}
 	var s: Dictionary = STAT_ITEMS.pick_random()
 	return {"kind": "stat", "id": s["id"], "name": s["name"], "desc": s["desc"],
-		"icon": "", "price": 14 + _wave * 3 + randi() % 10, "sold": false}
+		"icon": "res://assets/stat_%s.png" % s["id"], "price": _halve(14 + _wave * 3 + randi() % 10), "sold": false}
+
+
+func _halve(v: int) -> int:
+	return max(1, int(round(float(v) * 0.5)))
 
 
 # --- UI ----------------------------------------------------------------------
@@ -74,7 +82,7 @@ func _build_ui() -> void:
 	add_child(root)
 
 	var bg := ColorRect.new()
-	bg.color = Color(0.08, 0.09, 0.12, 0.98)
+	bg.color = Color(0.07, 0.08, 0.11, 0.99)
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
 	root.add_child(bg)
 
@@ -82,44 +90,56 @@ func _build_ui() -> void:
 	title.text = "상점 (웨이브 %d)" % _wave
 	title.add_theme_font_override("font", _font_display)
 	title.add_theme_font_size_override("font_size", 30)
-	title.position = Vector2(40, 24)
+	title.position = Vector2(40, 22)
 	root.add_child(title)
 
 	var coin := TextureRect.new()
 	coin.texture = load("res://assets/coin.png")
 	coin.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	coin.position = Vector2(360, 26)
-	coin.size = Vector2(30, 30)
+	coin.position = Vector2(360, 24)
+	coin.size = Vector2(32, 32)
 	root.add_child(coin)
 
 	_gold_label = Label.new()
 	_gold_label.add_theme_font_override("font", _font_display)
-	_gold_label.add_theme_font_size_override("font_size", 26)
+	_gold_label.add_theme_font_size_override("font_size", 27)
 	_gold_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.35))
-	_gold_label.position = Vector2(396, 26)
+	_gold_label.position = Vector2(398, 24)
 	root.add_child(_gold_label)
 
 	_reroll_btn = Button.new()
 	_reroll_btn.add_theme_font_override("font", _font_display)
 	_reroll_btn.add_theme_font_size_override("font_size", 20)
-	_reroll_btn.position = Vector2(636, 22)
-	_reroll_btn.custom_minimum_size = Vector2(220, 40)
-	_reroll_btn.size = Vector2(220, 40)
+	_reroll_btn.position = Vector2(636, 20)
+	_reroll_btn.size = Vector2(220, 42)
 	_reroll_btn.pressed.connect(_on_reroll)
 	root.add_child(_reroll_btn)
 
 	_cards_row = HBoxContainer.new()
 	_cards_row.add_theme_constant_override("separation", 16)
-	_cards_row.position = Vector2(40, 96)
+	_cards_row.position = Vector2(40, 84)
 	root.add_child(_cards_row)
+
+	# inventory (bottom-left)
+	var inv_title := Label.new()
+	inv_title.text = "인벤토리 (보유 무기 · 같은 무기 2개 드래그하면 합성)"
+	inv_title.add_theme_font_size_override("font_size", 17)
+	inv_title.add_theme_color_override("font_color", Color(0.75, 0.8, 0.9))
+	inv_title.position = Vector2(40, 470)
+	root.add_child(inv_title)
+
+	_inv_row = HBoxContainer.new()
+	_inv_row.add_theme_constant_override("separation", 10)
+	_inv_row.position = Vector2(40, 500)
+	root.add_child(_inv_row)
 
 	# stats panel (right)
 	var panel := Panel.new()
-	panel.position = Vector2(884, 96)
-	panel.size = Vector2(228, 470)
+	panel.position = Vector2(884, 84)
+	panel.size = Vector2(228, 476)
 	var psb := StyleBoxFlat.new()
-	psb.bg_color = Color(0.13, 0.15, 0.20, 1.0)
-	psb.set_corner_radius_all(10)
+	psb.bg_color = Color(0.12, 0.14, 0.19, 1.0)
+	psb.set_corner_radius_all(12)
 	panel.add_theme_stylebox_override("panel", psb)
 	root.add_child(panel)
 
@@ -127,12 +147,12 @@ func _build_ui() -> void:
 	stitle.text = "능력치"
 	stitle.add_theme_font_override("font", _font_display)
 	stitle.add_theme_font_size_override("font_size", 22)
-	stitle.position = Vector2(16, 10)
+	stitle.position = Vector2(16, 12)
 	panel.add_child(stitle)
 
 	_stats_label = Label.new()
 	_stats_label.add_theme_font_size_override("font_size", 17)
-	_stats_label.position = Vector2(16, 48)
+	_stats_label.position = Vector2(16, 52)
 	_stats_label.size = Vector2(200, 400)
 	panel.add_child(_stats_label)
 
@@ -140,9 +160,8 @@ func _build_ui() -> void:
 	cont.text = "이동 ▶"
 	cont.add_theme_font_override("font", _font_display)
 	cont.add_theme_font_size_override("font_size", 26)
-	cont.position = Vector2(884, 576)
-	cont.custom_minimum_size = Vector2(228, 52)
-	cont.size = Vector2(228, 52)
+	cont.position = Vector2(884, 574)
+	cont.size = Vector2(228, 54)
 	cont.pressed.connect(_on_continue)
 	root.add_child(cont)
 
@@ -159,10 +178,11 @@ func _make_card(index: int) -> Panel:
 	var accent := _kind_color(o["kind"])
 
 	var card := Panel.new()
-	card.custom_minimum_size = Vector2(196, 356)
+	card.custom_minimum_size = Vector2(196, 366)
+	card.clip_contents = true
 	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color(0.15, 0.17, 0.23, 1.0)
-	sb.set_corner_radius_all(12)
+	sb.bg_color = Color(0.14, 0.16, 0.22, 1.0)
+	sb.set_corner_radius_all(14)
 	sb.set_border_width_all(2)
 	sb.border_color = accent
 	card.add_theme_stylebox_override("panel", sb)
@@ -179,19 +199,17 @@ func _make_card(index: int) -> Panel:
 	var name_lbl := Label.new()
 	name_lbl.text = o["name"]
 	name_lbl.add_theme_font_override("font", _font_display)
-	name_lbl.add_theme_font_size_override("font_size", 21)
+	name_lbl.add_theme_font_size_override("font_size", 20)
 	name_lbl.add_theme_color_override("font_color", accent)
 	name_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(name_lbl)
 
 	var art := TextureRect.new()
+	art.texture = load(o["icon"]) if o["icon"] != "" else null
+	art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	art.custom_minimum_size = Vector2(0, 120)
+	art.custom_minimum_size = Vector2(0, 150)
 	art.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	if o["kind"] == "weapon" and o["icon"] != "":
-		art.texture = load(o["icon"])
-	else:
-		art.texture = load("res://assets/coin.png") if o["kind"] == "heal" else null
 	box.add_child(art)
 
 	var desc := Label.new()
@@ -204,13 +222,23 @@ func _make_card(index: int) -> Panel:
 
 	var buy := Button.new()
 	buy.add_theme_font_override("font", _font_display)
-	buy.add_theme_font_size_override("font_size", 19)
+	buy.add_theme_font_size_override("font_size", 18)
 	buy.custom_minimum_size = Vector2(0, 40)
 	buy.pressed.connect(_on_buy.bind(index))
 	box.add_child(buy)
 	o["_btn"] = buy
 
 	return card
+
+
+func _rebuild_inventory() -> void:
+	for c in _inv_row.get_children():
+		c.queue_free()
+	for i in _player.weapons.size():
+		var w: Weapon = _player.weapons[i]
+		var slot := WeaponSlot.new()
+		_inv_row.add_child(slot)
+		slot.setup(self, i, w.icon_path, w.level)
 
 
 func _kind_color(kind: String) -> Color:
@@ -232,6 +260,7 @@ func _on_buy(index: int) -> void:
 		return
 	if o["kind"] == "weapon":
 		_player.add_weapon(_player.make_weapon(o["id"]))
+		_rebuild_inventory()
 	else:
 		_player.apply_upgrade(o["id"])
 	o["sold"] = true
@@ -245,6 +274,12 @@ func _on_reroll() -> void:
 	_generate_offers()
 	_rebuild_cards()
 	_refresh()
+
+
+func try_merge(from_idx: int, to_idx: int) -> void:
+	if _player.merge_weapons(from_idx, to_idx):
+		_rebuild_inventory()
+		_refresh()
 
 
 func _on_continue() -> void:

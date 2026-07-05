@@ -45,6 +45,7 @@ var stat_speed_pct: float = 0.0    ## 다리: 이동속도 +3%씩
 var stat_armor: int = 0            ## 등: 방어력 +1씩
 var stat_range: float = 0.0        ## 눈: 사거리 +12px씩
 var weapons: Array = []
+var _start_weapon_id: String = "camera"
 
 
 func _ready() -> void:
@@ -71,6 +72,7 @@ func _apply_character() -> void:
 	_spear_damage = int(c.get("spear_damage", 0))
 	_spear_range = float(c.get("spear_range", 0.0))
 	_spear_cooldown = float(c.get("spear_cooldown", 0.5))
+	_start_weapon_id = c.get("weapon", "camera")
 
 
 func _build_sprite() -> void:
@@ -95,11 +97,10 @@ func _build_collision() -> void:
 
 
 func _attach_weapons() -> void:
-	# Starting loadout.
-	add_weapon(CameraWeapon.new())
-	add_weapon(CutterWeapon.new())
-	add_weapon(CucumberWeapon.new())
-	add_weapon(TpeCardWeapon.new())
+	# Each character starts with only their signature weapon, at +50% damage.
+	var w := make_weapon(_start_weapon_id)
+	w.damage_bonus_mult = 1.5
+	add_weapon(w)
 
 
 func add_weapon(w: Weapon) -> bool:
@@ -124,6 +125,27 @@ func make_weapon(id: String) -> Weapon:
 		"cucumber": return CucumberWeapon.new()
 		"cards": return TpeCardWeapon.new()
 	return CameraWeapon.new()
+
+
+## Merge weapon at [param from_idx] into [param to_idx] if same type & level.
+## Returns true on success (level up, one weapon consumed).
+func merge_weapons(from_idx: int, to_idx: int) -> bool:
+	if from_idx == to_idx:
+		return false
+	if from_idx < 0 or to_idx < 0 or from_idx >= weapons.size() or to_idx >= weapons.size():
+		return false
+	var a: Weapon = weapons[from_idx]
+	var b: Weapon = weapons[to_idx]
+	if a.weapon_id != b.weapon_id or a.level != b.level:
+		return false
+	if b.level >= Weapon.MAX_LEVEL:
+		return false
+	b.level += 1
+	b.damage_bonus_mult = maxf(a.damage_bonus_mult, b.damage_bonus_mult)
+	weapons.erase(a)
+	a.queue_free()
+	_arrange_weapons()
+	return true
 
 
 ## Apply a shop upgrade by id. Returns false only for unknown ids.

@@ -7,6 +7,7 @@ var _rng := RandomNumberGenerator.new()
 
 
 func _init() -> void:
+	weapon_id = "cards"
 	cooldown = 1.3
 	attack_range = 380.0
 	damage = 11

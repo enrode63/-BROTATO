@@ -5,6 +5,7 @@ extends Weapon
 
 
 func _init() -> void:
+	weapon_id = "cucumber"
 	cooldown = 1.1
 	attack_range = 460.0
 	damage = 14
