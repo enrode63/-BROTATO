@@ -16,11 +16,13 @@ var spawn_timer: float = 0.0
 var player: Player
 var _rng := RandomNumberGenerator.new()
 
+var _hp_bar: ProgressBar
 var _hp_label: Label
 var _wave_label: Label
 var _timer_label: Label
 var _gold_label: Label
 var _center_label: Label
+var _font_display: Font
 
 
 func _ready() -> void:
@@ -69,6 +71,10 @@ func _process_wave(delta: float) -> void:
 
 func _end_wave() -> void:
 	GameState.add_gold(5 + wave * 2)  # wave-clear bonus
+	# auto-collect any coins the player left on the ground
+	for p in get_tree().get_nodes_in_group("pickup"):
+		if p.has_method("force_collect"):
+			p.force_collect()
 	for e in get_tree().get_nodes_in_group("enemy"):
 		e.queue_free()
 	state = State.BREAK
@@ -156,11 +162,18 @@ func _random_edge_position() -> Vector2:
 # --- Setup helpers -----------------------------------------------------------
 
 func _build_background() -> void:
-	var bg := ColorRect.new()
-	bg.color = Color(0.10, 0.11, 0.14)
-	bg.size = ARENA
-	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(bg)  # added first -> drawn behind everything
+	var tex := load("res://assets/ground.png") as Texture2D
+	if tex != null:
+		var ground := Sprite2D.new()
+		ground.texture = tex
+		ground.centered = false
+		ground.z_index = -10
+		add_child(ground)
+	else:
+		var bg := ColorRect.new()
+		bg.color = Color(0.10, 0.11, 0.14)
+		bg.size = ARENA
+		add_child(bg)
 
 
 func _build_player() -> void:
@@ -172,43 +185,99 @@ func _build_player() -> void:
 
 
 func _build_hud() -> void:
+	_font_display = load("res://fonts/BlackHanSans-Regular.ttf")
 	var layer := CanvasLayer.new()
 	add_child(layer)
 
-	var vbox := VBoxContainer.new()
-	vbox.position = Vector2(16, 12)
-	layer.add_child(vbox)
-	_hp_label = _make_label(vbox, 20)
-	_wave_label = _make_label(vbox, 20)
-	_timer_label = _make_label(vbox, 20)
-	_gold_label = _make_label(vbox, 20)
+	# --- Health bar (top-left) ---
+	_hp_bar = ProgressBar.new()
+	_hp_bar.show_percentage = false
+	_hp_bar.position = Vector2(16, 14)
+	_hp_bar.custom_minimum_size = Vector2(196, 26)
+	_hp_bar.size = Vector2(196, 26)
+	_hp_bar.add_theme_stylebox_override("background", _bar_style(Color(0.09, 0.09, 0.12), Color(0, 0, 0, 0.6)))
+	_hp_bar.add_theme_stylebox_override("fill", _bar_style(Color(0.85, 0.20, 0.22), Color(0.4, 0.05, 0.05)))
+	layer.add_child(_hp_bar)
 
+	_hp_label = Label.new()
+	_hp_label.position = Vector2(16, 14)
+	_hp_label.size = Vector2(196, 26)
+	_hp_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_hp_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_hp_label.add_theme_font_size_override("font_size", 15)
+	_hp_label.add_theme_constant_override("outline_size", 4)
+	_hp_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
+	layer.add_child(_hp_label)
+
+	# --- Gold (coin icon + amount, under the bar) ---
+	var coin := TextureRect.new()
+	coin.texture = load("res://assets/coin.png")
+	coin.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	coin.position = Vector2(14, 46)
+	coin.size = Vector2(30, 30)
+	layer.add_child(coin)
+
+	_gold_label = Label.new()
+	_gold_label.position = Vector2(50, 44)
+	_gold_label.add_theme_font_override("font", _font_display)
+	_gold_label.add_theme_font_size_override("font_size", 26)
+	_gold_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.35))
+	_gold_label.add_theme_constant_override("outline_size", 5)
+	_gold_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
+	layer.add_child(_gold_label)
+
+	# --- Wave + timer (top-center) ---
+	_wave_label = _centered_label(layer, 22, 10)
+	_wave_label.add_theme_color_override("font_color", Color(0.9, 0.9, 0.95))
+	_timer_label = _centered_label(layer, 40, 34)
+
+	# --- Big center message (wave clear / game over) ---
 	_center_label = Label.new()
-	_center_label.add_theme_font_size_override("font_size", 40)
+	_center_label.add_theme_font_override("font", _font_display)
+	_center_label.add_theme_font_size_override("font_size", 44)
 	_center_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_center_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_center_label.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_center_label.add_theme_constant_override("outline_size", 6)
+	_center_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
 	layer.add_child(_center_label)
 
 
-func _make_label(parent: Node, size: int) -> Label:
+func _bar_style(fill: Color, border: Color) -> StyleBoxFlat:
+	var s := StyleBoxFlat.new()
+	s.bg_color = fill
+	s.set_corner_radius_all(5)
+	s.set_border_width_all(2)
+	s.border_color = border
+	return s
+
+
+func _centered_label(layer: CanvasLayer, size: int, y: float) -> Label:
 	var l := Label.new()
+	l.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	l.position.y = y
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	l.add_theme_font_override("font", _font_display)
 	l.add_theme_font_size_override("font_size", size)
-	parent.add_child(l)
+	l.add_theme_constant_override("outline_size", 5)
+	l.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
+	layer.add_child(l)
 	return l
 
 
 func _update_hud() -> void:
 	if player == null or not is_instance_valid(player):
 		return
-	_hp_label.text = "HP: %d / %d" % [player.health, player.max_health]
-	_wave_label.text = "Wave: %d" % wave
-	_gold_label.text = "Gold: %d" % GameState.gold
+	_hp_bar.max_value = player.max_health
+	_hp_bar.value = player.health
+	_hp_label.text = "%d / %d" % [player.health, player.max_health]
+	_gold_label.text = str(GameState.gold)
+	_wave_label.text = "WAVE %d" % wave
 	match state:
 		State.WAVE:
-			_timer_label.text = "Time: %0.1f" % maxf(timer, 0.0)
+			_timer_label.text = str(int(ceil(maxf(timer, 0.0))))
 		State.BREAK:
-			_timer_label.text = "Next: %0.1f" % maxf(timer, 0.0)
+			_timer_label.text = str(int(ceil(maxf(timer, 0.0))))
 		_:
 			_timer_label.text = ""
 

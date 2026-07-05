@@ -166,13 +166,26 @@ func apply_knockback(impulse: Vector2) -> void:
 
 func take_damage(amount: int) -> void:
 	health -= amount
+	_spawn_damage_number(amount)
 	queue_redraw()
 	if health <= 0:
 		_die()
 
 
+func _spawn_damage_number(amount: int) -> void:
+	if amount <= 0:
+		return
+	var dn := DamageNumber.new()
+	dn.setup(amount)
+	dn.global_position = global_position + Vector2(_rng.randf_range(-8.0, 8.0), -body_radius)
+	get_tree().current_scene.add_child(dn)
+
+
 func _die() -> void:
-	GameState.add_gold(gold_reward)
+	var p := GoldPickup.new()
+	p.setup(gold_reward)
+	p.global_position = global_position + Vector2(_rng.randf_range(-10.0, 10.0), _rng.randf_range(-10.0, 10.0))
+	get_tree().current_scene.add_child(p)
 	queue_free()
 
 
