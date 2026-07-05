@@ -84,8 +84,18 @@ func _process_break(delta: float) -> void:
 
 func _spawn_enemy() -> void:
 	var e := Enemy.new()
-	var is_tanker := _rng.randf() < 0.2
-	if is_tanker:
+	# Spawn mix: basic 50% / tanker 25% / ranged 25%.
+	var roll := _rng.randf()
+	if roll < 0.50:
+		e.max_health = 16 + wave * 4
+		e.move_speed = 88.0 + float(wave) * 2.0
+		e.contact_damage = 8
+		e.gold_reward = 1
+		e.body_radius = 14.0
+		e.color = Color(0.90, 0.30, 0.30)
+		e.texture_path = "res://assets/mob_basic.png"
+		e.sprite_height = 54.0
+	elif roll < 0.75:
 		e.max_health = 55 + wave * 9
 		e.move_speed = 62.0
 		e.contact_damage = 14
@@ -95,14 +105,19 @@ func _spawn_enemy() -> void:
 		e.texture_path = "res://assets/mob_tanker.png"
 		e.sprite_height = 72.0
 	else:
-		e.max_health = 16 + wave * 4
-		e.move_speed = 88.0 + float(wave) * 2.0
-		e.contact_damage = 8
-		e.gold_reward = 1
-		e.body_radius = 14.0
-		e.color = Color(0.90, 0.30, 0.30)
-		e.texture_path = "res://assets/mob_basic.png"
-		e.sprite_height = 54.0
+		e.max_health = 22 + wave * 4
+		e.move_speed = 74.0
+		e.contact_damage = 6
+		e.gold_reward = 2
+		e.body_radius = 15.0
+		e.color = Color(0.35, 0.55, 0.95)
+		e.texture_path = "res://assets/mob_ranged.png"
+		e.sprite_height = 66.0
+		e.ranged = true
+		e.prefer_range = 300.0
+		e.fire_interval = 2.0
+		e.projectile_damage = 7 + int(wave / 2)
+		e.projectile_speed = 250.0
 	e.position = _random_edge_position()
 	add_child(e)
 

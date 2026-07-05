@@ -13,7 +13,16 @@ extends CharacterBody2D
 @export var texture_path: String = ""
 @export var sprite_height: float = 48.0
 
+# --- Ranged behavior (원거리 몹) ---
+@export var ranged: bool = false
+@export var prefer_range: float = 300.0     ## holds position once this close
+@export var fire_interval: float = 2.0
+@export var projectile_damage: int = 8
+@export var projectile_speed: float = 260.0
+@export var max_fire_range: float = 620.0
+
 const KNOCKBACK_DECAY := 900.0
+var _fire_cd: float = 2.0
 
 var health: int = 20
 var _player: Node2D = null
@@ -31,6 +40,7 @@ func _ready() -> void:
 	shape.shape = circle
 	add_child(shape)
 	_build_sprite()
+	_fire_cd = fire_interval
 	_player = get_tree().get_first_node_in_group("player")
 
 
@@ -53,15 +63,34 @@ func _physics_process(delta: float) -> void:
 		_player = get_tree().get_first_node_in_group("player")
 		return
 	var to_player := _player.global_position - global_position
-	velocity = to_player.normalized() * move_speed + _knockback
+	var dist := to_player.length()
+
+	# Ranged enemies stop approaching once they are close enough to shoot.
+	var move_dir := to_player.normalized()
+	if ranged and dist <= prefer_range:
+		move_dir = Vector2.ZERO
+	velocity = move_dir * move_speed + _knockback
 	move_and_slide()
 	_knockback = _knockback.move_toward(Vector2.ZERO, KNOCKBACK_DECAY * delta)
 
+	if ranged:
+		_fire_cd -= delta
+		if _fire_cd <= 0.0 and dist <= max_fire_range:
+			_fire_projectile(to_player.normalized())
+			_fire_cd = fire_interval
+
 	_attack_cooldown -= delta
-	if to_player.length() <= body_radius + 18.0 and _attack_cooldown <= 0.0:
+	if dist <= body_radius + 18.0 and _attack_cooldown <= 0.0:
 		if _player.has_method("take_damage"):
 			_player.take_damage(contact_damage)
 		_attack_cooldown = 0.6
+
+
+func _fire_projectile(dir: Vector2) -> void:
+	var b := EnemyBullet.new()
+	b.setup(dir, projectile_damage, projectile_speed)
+	b.global_position = global_position
+	get_tree().current_scene.add_child(b)
 
 
 func apply_knockback(impulse: Vector2) -> void:
