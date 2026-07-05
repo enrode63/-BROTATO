@@ -5,15 +5,19 @@ GitHub Actions가 HTML5로 빌드해 **GitHub Pages**에 자동 배포합니다.
 
 플레이 URL(배포 후): `https://<GitHub계정>.github.io/BROTATO/`
 
-## 현재 구현 범위 (코어 루프 / MVP 1~4)
+## 현재 구현 범위
 
-- 플레이어 이동(WASD·방향키) + **자동 조준/자동 발사**
+- **캐릭터 선택 화면**(JAE AGAIN): 3인 중 선택 — 사진 + 능력 설명 + START
+  - **다니엘**: 체력 +200%, 몸통 박치기(몹 접촉 시 넉백+데미지)
+  - **쑤마왕**: 보스 데미지 +200%, 받는 데미지 50% 감소
+  - **솔추**: 체력 +40%, 근접 시 창으로 자동 반격
+- 플레이어 이동(WASD·방향키) + **자동 조준/자동 발사** (사진 스프라이트)
 - 무기 2종: **카메라**(샷건, 다중 펠릿) · **시운이의 커터칼**(근접 광역)
-- 적 2종: 기본 몹 · 탱커 + 화면 가장자리 스폰
+- 적 2종: 기본 몹 · 탱커 (사진 스프라이트) + 화면 가장자리 스폰
 - 웨이브 타이머 + 웨이브별 체력/스폰 스케일링, 웨이브 클리어 보너스 골드
 - HP/웨이브/타이머/골드 HUD, 게임오버 → R 재시작
 
-> 아직 미구현(다음 단계): 상점·재굴림, 능력치 업그레이드, 나머지 무기·캐릭터·보스, 투척무기, 사운드.
+> 아직 미구현(다음 단계): 상점·재굴림, 능력치 업그레이드, 나머지 무기, 보스(서영교·차현승), 투척무기, 사운드.
 
 ## 조작
 
@@ -43,11 +47,16 @@ GitHub Actions가 HTML5로 빌드해 **GitHub Pages**에 자동 배포합니다.
 ```
 project.godot          # 엔진 설정 + GameState 오토로드 + 창 크기
 export_presets.cfg     # Web(HTML5) export 프리셋 (CI가 사용)
-scenes/main.tscn       # 메인 씬 (main.gd)
+scenes/
+  character_select.tscn # 시작 화면 (메인 씬)
+  game.tscn             # 게임플레이 씬 (main.gd)
+assets/                 # 캐릭터·몹 사진 (PNG)
 scripts/
+  character_select.gd  # 캐릭터 선택 화면
+  characters.gd        # 캐릭터 정의(능력/스탯) 단일 출처
   main.gd              # 게임 루프·웨이브·스폰·HUD
-  game_state.gd        # 골드/경험치/웨이브 전역 상태 (오토로드)
-  player.gd            # 이동 + 무기 장착
+  game_state.gd        # 골드/경험치/웨이브/선택캐릭터 전역 상태 (오토로드)
+  player.gd            # 이동 + 무기 장착 + 캐릭터 능력
   weapon.gd            # 자동조준 무기 베이스
   camera_weapon.gd     # 카메라(샷건)
   cutter_weapon.gd     # 시운이의 커터칼(근접)

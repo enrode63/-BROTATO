@@ -9,6 +9,8 @@ signal wave_changed(value: int)
 var gold: int = 0
 var xp: int = 0
 var wave: int = 0
+## Chosen on the character-select screen; read by the player on game start.
+var selected_character_id: String = "ssumawang"
 
 
 func add_gold(amount: int) -> void:

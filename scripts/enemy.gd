@@ -13,10 +13,13 @@ extends CharacterBody2D
 @export var texture_path: String = ""
 @export var sprite_height: float = 48.0
 
+const KNOCKBACK_DECAY := 900.0
+
 var health: int = 20
 var _player: Node2D = null
 var _attack_cooldown: float = 0.0
 var _has_sprite: bool = false
+var _knockback: Vector2 = Vector2.ZERO
 
 
 func _ready() -> void:
@@ -50,14 +53,19 @@ func _physics_process(delta: float) -> void:
 		_player = get_tree().get_first_node_in_group("player")
 		return
 	var to_player := _player.global_position - global_position
-	velocity = to_player.normalized() * move_speed
+	velocity = to_player.normalized() * move_speed + _knockback
 	move_and_slide()
+	_knockback = _knockback.move_toward(Vector2.ZERO, KNOCKBACK_DECAY * delta)
 
 	_attack_cooldown -= delta
 	if to_player.length() <= body_radius + 18.0 and _attack_cooldown <= 0.0:
 		if _player.has_method("take_damage"):
 			_player.take_damage(contact_damage)
 		_attack_cooldown = 0.6
+
+
+func apply_knockback(impulse: Vector2) -> void:
+	_knockback = impulse
 
 
 func take_damage(amount: int) -> void:
