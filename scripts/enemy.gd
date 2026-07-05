@@ -9,10 +9,14 @@ extends CharacterBody2D
 @export var gold_reward: int = 1
 @export var body_radius: float = 12.0
 @export var color: Color = Color(0.90, 0.30, 0.30)
+## Optional image for this enemy. Height on screen is [member sprite_height].
+@export var texture_path: String = ""
+@export var sprite_height: float = 48.0
 
 var health: int = 20
 var _player: Node2D = null
 var _attack_cooldown: float = 0.0
+var _has_sprite: bool = false
 
 
 func _ready() -> void:
@@ -23,7 +27,22 @@ func _ready() -> void:
 	circle.radius = body_radius
 	shape.shape = circle
 	add_child(shape)
+	_build_sprite()
 	_player = get_tree().get_first_node_in_group("player")
+
+
+func _build_sprite() -> void:
+	if texture_path == "":
+		return
+	var tex := load(texture_path) as Texture2D
+	if tex == null:
+		return
+	var spr := Sprite2D.new()
+	spr.texture = tex
+	spr.scale = Vector2.ONE * (sprite_height / float(tex.get_height()))
+	spr.z_index = 1
+	add_child(spr)
+	_has_sprite = true
 
 
 func _physics_process(delta: float) -> void:
@@ -54,5 +73,9 @@ func _die() -> void:
 
 
 func _draw() -> void:
-	draw_circle(Vector2.ZERO, body_radius, color)
-	draw_arc(Vector2.ZERO, body_radius, 0.0, TAU, 20, color.darkened(0.4), 2.0)
+	# Soft shadow so figures read against the floor.
+	draw_circle(Vector2(0, body_radius * 0.6), body_radius, Color(0, 0, 0, 0.22))
+	if not _has_sprite:
+		# Fallback look when no image is set.
+		draw_circle(Vector2.ZERO, body_radius, color)
+		draw_arc(Vector2.ZERO, body_radius, 0.0, TAU, 20, color.darkened(0.4), 2.0)

@@ -9,6 +9,9 @@ signal health_changed(current: int, maximum: int)
 @export var move_speed: float = 220.0
 @export var max_health: int = 100
 @export var body_radius: float = 14.0
+## Face/body image drawn for the player. Height on screen is [member sprite_height].
+@export var texture_path: String = "res://assets/player_ssumawang.png"
+@export var sprite_height: float = 56.0
 
 ## Rectangle the player is confined to. Set by Main after instancing.
 var bounds: Rect2 = Rect2(Vector2.ZERO, Vector2(1152, 648))
@@ -20,8 +23,22 @@ func _ready() -> void:
 	health = max_health
 	add_to_group("player")
 	_build_collision()
+	_build_sprite()
 	_attach_weapons()
 	health_changed.emit(health, max_health)
+
+
+func _build_sprite() -> void:
+	if texture_path == "":
+		return
+	var tex := load(texture_path) as Texture2D
+	if tex == null:
+		return
+	var spr := Sprite2D.new()
+	spr.texture = tex
+	spr.scale = Vector2.ONE * (sprite_height / float(tex.get_height()))
+	spr.z_index = 1
+	add_child(spr)
 
 
 func _build_collision() -> void:
@@ -73,6 +90,5 @@ func take_damage(amount: int) -> void:
 
 
 func _draw() -> void:
-	draw_circle(Vector2.ZERO, body_radius, Color(0.30, 0.70, 1.0))
-	# little facing dot / eye so orientation reads
-	draw_circle(Vector2(0, -body_radius * 0.4), body_radius * 0.28, Color(0.05, 0.1, 0.2))
+	# Soft shadow under the sprite for a bit of depth.
+	draw_circle(Vector2(0, body_radius * 0.6), body_radius, Color(0, 0, 0, 0.25))

@@ -90,15 +90,19 @@ func _spawn_enemy() -> void:
 		e.move_speed = 62.0
 		e.contact_damage = 14
 		e.gold_reward = 3
-		e.body_radius = 18.0
+		e.body_radius = 20.0
 		e.color = Color(0.62, 0.24, 0.55)
+		e.texture_path = "res://assets/mob_tanker.png"
+		e.sprite_height = 72.0
 	else:
 		e.max_health = 16 + wave * 4
 		e.move_speed = 88.0 + float(wave) * 2.0
 		e.contact_damage = 8
 		e.gold_reward = 1
-		e.body_radius = 12.0
+		e.body_radius = 14.0
 		e.color = Color(0.90, 0.30, 0.30)
+		e.texture_path = "res://assets/mob_basic.png"
+		e.sprite_height = 54.0
 	e.position = _random_edge_position()
 	add_child(e)
 
