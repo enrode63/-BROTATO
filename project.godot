@@ -21,6 +21,10 @@ window/size/viewport_height=648
 window/stretch/mode="canvas_items"
 window/stretch/aspect="keep"
 
+[gui]
+
+theme/custom_font="res://fonts/GothicA1-Regular.ttf"
+
 [rendering]
 
 renderer/rendering_method="gl_compatibility"
