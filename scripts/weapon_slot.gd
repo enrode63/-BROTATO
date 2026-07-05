@@ -46,6 +46,12 @@ func setup(shop_ref: Shop, idx: int, icon_path: String, level: int) -> void:
 		add_child(lvl)
 
 
+func _gui_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_RIGHT:
+		if shop != null and index >= 0:
+			shop.sell_weapon(index)
+
+
 func _get_drag_data(_at_position: Vector2) -> Variant:
 	if index < 0:
 		return null

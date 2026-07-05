@@ -135,6 +135,44 @@ func make_weapon(id: String) -> Weapon:
 	return CameraWeapon.new()
 
 
+## Can we take another copy of [param id]? True if a slot is free, or an
+## existing copy of the same type can still level up (buy-to-merge when full).
+func can_acquire_weapon(id: String) -> bool:
+	if weapons.size() < MAX_WEAPONS:
+		return true
+	for w in weapons:
+		if w.weapon_id == id and w.level < Weapon.MAX_LEVEL:
+			return true
+	return false
+
+
+## Add a weapon, or (if full) level up the lowest matching copy. Returns success.
+func acquire_weapon(id: String) -> bool:
+	if weapons.size() < MAX_WEAPONS:
+		return add_weapon(make_weapon(id))
+	var best: Weapon = null
+	for w in weapons:
+		if w.weapon_id == id and w.level < Weapon.MAX_LEVEL:
+			if best == null or w.level < best.level:
+				best = w
+	if best != null:
+		best.level += 1
+		return true
+	return false
+
+
+## Sell the weapon at [param index] for 50% of its shop price. Keeps >=1 weapon.
+func sell_weapon(index: int, wave: int) -> int:
+	if weapons.size() <= 1 or index < 0 or index >= weapons.size():
+		return 0
+	var w: Weapon = weapons[index]
+	var value := max(1, int(round((42.0 + float(wave) * 4.0) * 0.25)) * w.level)
+	weapons.remove_at(index)
+	w.queue_free()
+	_arrange_weapons()
+	return value
+
+
 ## Merge weapon at [param from_idx] into [param to_idx] if same type & level.
 ## Returns true on success (level up, one weapon consumed).
 func merge_weapons(from_idx: int, to_idx: int) -> bool:
@@ -162,7 +200,7 @@ func apply_upgrade(id: String) -> bool:
 		"tricep": stat_damage_pct += 5.0
 		"leg": stat_speed_pct += 3.0
 		"heart": _add_hp_pct(5.0)
-		"spine": stat_armor += 5
+		"spine": stat_armor += 1
 		"tooth": stat_lifesteal += 1.0
 		"monkey": stat_bonus_gold += 1
 		"heal": health = min(max_health, health + int(ceil(max_health * 0.25)))

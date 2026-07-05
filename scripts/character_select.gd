@@ -161,6 +161,16 @@ func _make_card(c: Dictionary, index: int) -> Button:
 	desc.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	box.add_child(desc)
 
+	# signature weapon (+50% damage)
+	var wpn := Label.new()
+	wpn.text = "고유무기: %s\n데미지 +50%%" % c.get("weapon_name", "")
+	wpn.add_theme_font_size_override("font_size", 14)
+	wpn.add_theme_color_override("font_color", Color(1.0, 0.82, 0.4))
+	wpn.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	wpn.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	wpn.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	box.add_child(wpn)
+
 	return card
 
 

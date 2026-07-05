@@ -5,7 +5,7 @@ extends Node2D
 enum State { WAVE, SHOP, GAMEOVER }
 
 const ARENA := Vector2(1152, 648)
-const WAVE_DURATION := 20.0
+const WAVE_DURATION := 45.0
 
 var state: int = State.WAVE
 var wave: int = 0
@@ -22,6 +22,8 @@ var _timer_label: Label
 var _gold_label: Label
 var _center_label: Label
 var _font_display: Font
+var _throw_boxes: Dictionary = {}
+var _throw_labels: Dictionary = {}
 
 
 func _ready() -> void:
@@ -60,8 +62,8 @@ func _process_wave(delta: float) -> void:
 	spawn_timer -= delta
 	if spawn_timer <= 0.0:
 		_spawn_enemy()
-		# Enemies come faster in later waves, floored so it stays survivable.
-		spawn_timer = maxf(0.35, 1.4 - float(wave) * 0.08)
+		# 웨이브가 거듭될수록 더 많이/빠르게 스폰.
+		spawn_timer = maxf(0.22, 1.3 - float(wave) * 0.09)
 	if timer <= 0.0:
 		_end_wave()
 
@@ -153,6 +155,10 @@ func _spawn_enemy() -> void:
 		e.fire_interval = 2.0
 		e.projectile_damage = 7 + int(wave / 2)
 		e.projectile_speed = 250.0
+	# 웨이브마다 몹 데미지 +5%.
+	var dmg_scale := 1.0 + 0.05 * float(wave - 1)
+	e.contact_damage = int(round(float(e.contact_damage) * dmg_scale))
+	e.projectile_damage = int(round(float(e.projectile_damage) * dmg_scale))
 	e.position = _random_edge_position()
 	add_child(e)
 
@@ -237,6 +243,40 @@ func _build_hud() -> void:
 	_gold_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
 	layer.add_child(_gold_label)
 
+	# --- Throwable counters (under gold) ---
+	var tdefs := [["grenade", "res://assets/throw_grenade.png", "1"],
+		["flashbang", "res://assets/throw_flash.png", "2"],
+		["molotov", "res://assets/throw_molotov.png", "3"]]
+	var tx := 14.0
+	for def in tdefs:
+		var box := Control.new()
+		box.position = Vector2(tx, 82)
+		box.custom_minimum_size = Vector2(62, 40)
+		layer.add_child(box)
+		var ic := TextureRect.new()
+		ic.texture = load(def[1])
+		ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		ic.size = Vector2(34, 34)
+		box.add_child(ic)
+		var key := Label.new()
+		key.text = def[2]
+		key.add_theme_font_size_override("font_size", 12)
+		key.add_theme_color_override("font_color", Color(0.7, 0.85, 1.0))
+		key.add_theme_constant_override("outline_size", 3)
+		key.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
+		key.position = Vector2(0, 22)
+		box.add_child(key)
+		var cnt := Label.new()
+		cnt.add_theme_font_override("font", _font_display)
+		cnt.add_theme_font_size_override("font_size", 18)
+		cnt.add_theme_constant_override("outline_size", 4)
+		cnt.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
+		cnt.position = Vector2(32, 8)
+		box.add_child(cnt)
+		_throw_boxes[def[0]] = box
+		_throw_labels[def[0]] = cnt
+		tx += 66.0
+
 	# --- Wave + timer (top-center) ---
 	_wave_label = _centered_label(layer, 22, 10)
 	_wave_label.add_theme_color_override("font_color", Color(0.9, 0.9, 0.95))
@@ -283,6 +323,10 @@ func _update_hud() -> void:
 	_hp_bar.value = player.health
 	_hp_label.text = "%d / %d" % [player.health, player.max_health]
 	_gold_label.text = str(GameState.gold)
+	for id in _throw_boxes:
+		var n := int(player.throwable_counts.get(id, 0))
+		_throw_boxes[id].visible = n > 0
+		_throw_labels[id].text = "x%d" % n
 	_wave_label.text = "WAVE %d" % wave
 	match state:
 		State.WAVE:

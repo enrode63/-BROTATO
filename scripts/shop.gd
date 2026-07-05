@@ -17,13 +17,13 @@ const STAT_ITEMS := [
 const WEAPON_ITEMS := [
 	{"id": "cucumber", "name": "우람한 오이", "desc": "관통 원거리 창", "icon": "res://assets/weapon_cucumber.png"},
 	{"id": "cards", "name": "트페의 카드", "desc": "랜덤 카드 효과", "icon": "res://assets/weapon_cards.png"},
-	{"id": "cutter", "name": "커터칼", "desc": "근접 광역", "icon": "res://assets/weapon_cutter.png"},
-	{"id": "camera", "name": "카메라", "desc": "샷건 광역", "icon": "res://assets/weapon_camera.png"},
+	{"id": "cutter", "name": "시운이의 커터칼", "desc": "근접 광역", "icon": "res://assets/weapon_cutter.png"},
+	{"id": "camera", "name": "캡챠해둘게요~", "desc": "부채꼴 스턴", "icon": "res://assets/weapon_camera.png"},
 ]
 const THROWABLE_ITEMS := [
 	{"id": "grenade", "name": "수류탄", "desc": "광역 폭발 (1키)", "icon": "res://assets/throw_grenade.png"},
 	{"id": "flashbang", "name": "섬광탄", "desc": "전체 3초 속박 (2키)", "icon": "res://assets/throw_flash.png"},
-	{"id": "molotov", "name": "화염병", "desc": "범위 지속 화염 (3키)", "icon": "res://assets/throw_molotov.png"},
+	{"id": "molotov", "name": "화'염병'", "desc": "범위 지속 화염 (3키)", "icon": "res://assets/throw_molotov.png"},
 ]
 
 var _player: Player
@@ -62,30 +62,40 @@ func _generate_offers() -> void:
 
 
 func _weapon_offer() -> Dictionary:
-	if _player.weapons.size() >= Player.MAX_WEAPONS:
-		return _stat_offer()
 	var w: Dictionary = WEAPON_ITEMS.pick_random()
 	return {"kind": "weapon", "id": w["id"], "name": w["name"], "desc": w["desc"],
-		"icon": w["icon"], "price": _halve(42 + _wave * 4 + randi() % 16), "sold": false}
+		"icon": w["icon"], "price": _price(42, 4, 16), "sold": false}
 
 
 func _throwable_offer() -> Dictionary:
 	var t: Dictionary = THROWABLE_ITEMS.pick_random()
 	return {"kind": "throwable", "id": t["id"], "name": t["name"], "desc": t["desc"],
-		"icon": t["icon"], "amount": 2, "price": _halve(28 + _wave * 3 + randi() % 10), "sold": false}
+		"icon": t["icon"], "amount": 2, "price": _price(28, 3, 10), "sold": false}
 
 
 func _stat_offer() -> Dictionary:
 	if randf() < 0.16:
 		return {"kind": "heal", "id": "heal", "name": "체력 회복", "desc": "HP 25% 회복",
-			"icon": "res://assets/stat_heal.png", "price": _halve(22 + _wave * 2), "sold": false}
-	var s: Dictionary = STAT_ITEMS.pick_random()
+			"icon": "res://assets/stat_heal.png", "price": _price(22, 2, 1), "sold": false}
+	var pool := STAT_ITEMS.filter(_stat_allowed)
+	var s: Dictionary = pool.pick_random()
 	return {"kind": "stat", "id": s["id"], "name": s["name"], "desc": s["desc"],
-		"icon": s["icon"], "price": _halve(14 + _wave * 3 + randi() % 10), "sold": false}
+		"icon": s["icon"], "price": _price(14, 3, 10), "sold": false}
 
 
-func _halve(v: int) -> int:
-	return max(1, int(round(float(v) * 0.5)))
+## 쌀숭이(추가 골드)는 5회(=+5)까지만 등장.
+func _stat_allowed(item: Dictionary) -> bool:
+	if item["id"] == "monkey" and _player.stat_bonus_gold >= 5:
+		return false
+	return true
+
+
+## Base price, per-wave growth, and a small random spread — then halved (50% off).
+## Prices climb as waves go on.
+func _price(base: int, per_wave: int, spread: int) -> int:
+	var raw := base + _wave * per_wave + (randi() % max(spread, 1))
+	raw = int(round(float(raw) * (1.0 + 0.04 * float(_wave))))  # extra late-game growth
+	return max(1, int(round(float(raw) * 0.5)))
 
 
 # --- UI ----------------------------------------------------------------------
@@ -136,7 +146,7 @@ func _build_ui() -> void:
 
 	# inventory (bottom-left)
 	var inv_title := Label.new()
-	inv_title.text = "인벤토리 (보유 무기 · 같은 무기 2개 드래그하면 합성)"
+	inv_title.text = "인벤토리 (같은 무기 2개 드래그 = 합성 · 무기 우클릭 = 50% 판매)"
 	inv_title.add_theme_font_size_override("font_size", 17)
 	inv_title.add_theme_color_override("font_color", Color(0.75, 0.8, 0.9))
 	inv_title.position = Vector2(40, 470)
@@ -308,13 +318,13 @@ func _on_buy(index: int) -> void:
 	var o: Dictionary = _offers[index]
 	if o.get("sold", false):
 		return
-	if o["kind"] == "weapon" and _player.weapons.size() >= Player.MAX_WEAPONS:
+	if o["kind"] == "weapon" and not _player.can_acquire_weapon(o["id"]):
 		return
 	if not GameState.spend(int(o["price"])):
 		return
 	match o["kind"]:
 		"weapon":
-			_player.add_weapon(_player.make_weapon(o["id"]))
+			_player.acquire_weapon(o["id"])
 			_rebuild_inventory()
 		"throwable":
 			_player.add_throwable(o["id"], int(o.get("amount", 2)))
@@ -323,6 +333,14 @@ func _on_buy(index: int) -> void:
 			_player.apply_upgrade(o["id"])
 	o["sold"] = true
 	_refresh()
+
+
+func sell_weapon(index: int) -> void:
+	var value := _player.sell_weapon(index, _wave)
+	if value > 0:
+		GameState.add_gold(value)
+		_rebuild_inventory()
+		_refresh()
 
 
 func _on_reroll() -> void:
@@ -359,6 +377,9 @@ func _refresh() -> void:
 			continue
 		if o.get("sold", false):
 			btn.text = "완료"
+			btn.disabled = true
+		elif o["kind"] == "weapon" and not _player.can_acquire_weapon(o["id"]):
+			btn.text = "슬롯 가득"
 			btn.disabled = true
 		else:
 			btn.text = "구매 %d" % int(o["price"])

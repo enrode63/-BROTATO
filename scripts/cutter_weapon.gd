@@ -3,6 +3,7 @@ extends Weapon
 ## "시운이의 커터칼" — melee. Damages every enemy inside a short radius when
 ## it swings. Fast cooldown, high per-hit damage, tiny range.
 
+const SWING_DUR := 0.22
 var _swing_left: float = 0.0
 
 
@@ -18,6 +19,10 @@ func _process(delta: float) -> void:
 	super._process(delta)
 	if _swing_left > 0.0:
 		_swing_left -= delta
+		# sweep the blade through an arc while swinging
+		if _icon != null:
+			var t := clampf(1.0 - _swing_left / SWING_DUR, 0.0, 1.0)
+			_icon.rotation += deg_to_rad(lerpf(-75.0, 75.0, t))
 		if _swing_left <= 0.0:
 			queue_redraw()
 
@@ -30,7 +35,7 @@ func _fire(_target: Node2D) -> void:
 			continue
 		if global_position.distance_to(e.global_position) <= reach and e.has_method("take_damage"):
 			e.take_damage(dmg)
-	_swing_left = 0.14
+	_swing_left = SWING_DUR
 	queue_redraw()
 
 
