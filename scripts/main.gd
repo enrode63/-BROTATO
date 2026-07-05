@@ -250,32 +250,34 @@ func _build_hud() -> void:
 	var tx := 14.0
 	for def in tdefs:
 		var box := Control.new()
-		box.position = Vector2(tx, 82)
-		box.custom_minimum_size = Vector2(62, 40)
+		box.position = Vector2(tx, 84)
+		box.custom_minimum_size = Vector2(48, 30)
 		layer.add_child(box)
 		var ic := TextureRect.new()
 		ic.texture = load(def[1])
+		ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		ic.size = Vector2(34, 34)
+		ic.custom_minimum_size = Vector2(26, 26)
+		ic.size = Vector2(26, 26)
 		box.add_child(ic)
 		var key := Label.new()
 		key.text = def[2]
-		key.add_theme_font_size_override("font_size", 12)
+		key.add_theme_font_size_override("font_size", 11)
 		key.add_theme_color_override("font_color", Color(0.7, 0.85, 1.0))
 		key.add_theme_constant_override("outline_size", 3)
 		key.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
-		key.position = Vector2(0, 22)
+		key.position = Vector2(0, 14)
 		box.add_child(key)
 		var cnt := Label.new()
 		cnt.add_theme_font_override("font", _font_display)
-		cnt.add_theme_font_size_override("font_size", 18)
+		cnt.add_theme_font_size_override("font_size", 15)
 		cnt.add_theme_constant_override("outline_size", 4)
 		cnt.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
-		cnt.position = Vector2(32, 8)
+		cnt.position = Vector2(24, 3)
 		box.add_child(cnt)
 		_throw_boxes[def[0]] = box
 		_throw_labels[def[0]] = cnt
-		tx += 66.0
+		tx += 50.0
 
 	# --- Wave + timer (top-center) ---
 	_wave_label = _centered_label(layer, 22, 10)
