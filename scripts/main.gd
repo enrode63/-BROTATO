@@ -84,6 +84,24 @@ func _process_break(delta: float) -> void:
 
 func _spawn_enemy() -> void:
 	var e := Enemy.new()
+	e.arena_size = ARENA
+
+	# 3% chance: 황금 고블린 (빠르고, 안 아프고, 골드 잭팟, 7초 뒤 도망).
+	if _rng.randf() < 0.03:
+		e.max_health = 24 + wave * 2
+		e.move_speed = 440.0
+		e.contact_damage = 0
+		e.gold_reward = 25
+		e.body_radius = 18.0
+		e.color = Color(1.0, 0.85, 0.20)
+		e.texture_path = "res://assets/goblin.png"
+		e.sprite_height = 88.0
+		e.wander = true
+		e.flee_after = 7.0
+		e.position = _random_edge_position()
+		add_child(e)
+		return
+
 	# Spawn mix: basic 50% / tanker 25% / ranged 25%.
 	var roll := _rng.randf()
 	if roll < 0.50:
