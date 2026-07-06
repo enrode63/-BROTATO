@@ -117,9 +117,9 @@ func _spawn_boss(type: String) -> void:
 	var b := Boss.new()
 	b.arena_size = ARENA
 	b.boss_type = type
-	b.max_health = 500 + wave * 45
-	b.move_speed = 52.0
-	b.contact_damage = 20
+	b.max_health = 2500 + wave * 225
+	b.move_speed = 58.0
+	b.contact_damage = 100
 	b.gold_reward = 80
 	b.body_radius = 42.0
 	b.sprite_height = 150.0
@@ -208,6 +208,11 @@ func _spawn_enemy() -> void:
 		add_child(g)
 		return
 
+	# Wave 5 이후 10% 확률로 자폭몹 등장
+	if wave >= 5 and _rng.randf() < 0.10:
+		_spawn_bomber()
+		return
+
 	var roll := _rng.randf()
 	var kind := "basic" if roll < 0.50 else ("tanker" if roll < 0.75 else "ranged")
 	var e := Enemy.new()
@@ -216,6 +221,22 @@ func _spawn_enemy() -> void:
 	_apply_dmg_scale(e)
 	e.position = _random_edge_position()
 	add_child(e)
+
+
+func _spawn_bomber() -> void:
+	var b := BomberEnemy.new()
+	b.arena_size = ARENA
+	b.max_health = 30 + wave * 6
+	b.move_speed = 82.0
+	b.contact_damage = 0
+	b.gold_reward = 3
+	b.body_radius = 15.0
+	b.color = Color(0.95, 0.55, 0.15)
+	b.texture_path = "res://assets/mob_bomber.png"
+	b.sprite_height = 60.0
+	b._wave_number = wave
+	b.position = _random_edge_position()
+	add_child(b)
 
 
 ## Configure an enemy's base stats for a given kind (basic / tanker / ranged).
