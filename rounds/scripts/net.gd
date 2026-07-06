@@ -24,6 +24,10 @@ func start(url: String, room: String) -> void:
 	_room = room
 	_joined = false
 	my_player = 0
+	# 접속을 다시 시도할 때마다 새 소켓을 만든다. 이전 소켓을 재사용하면
+	# 아직 CLOSED 상태가 아닐 때 connect_to_url이 ERR_ALREADY_IN_USE로
+	# 실패해 화면이 그대로 멈추는(회색 화면) 문제가 있었다.
+	_ws = WebSocketPeer.new()
 	var err := _ws.connect_to_url(url)
 	if err != OK:
 		active = false
