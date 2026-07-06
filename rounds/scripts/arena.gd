@@ -35,6 +35,8 @@ var _banner_container: CenterContainer
 var _banner: Label
 var _banner_sub: Label
 var _card_screen: CardSelect = null
+var _my_portrait: RoundPortrait
+var _opp_portrait: RoundPortrait
 
 # --- 화면 흔들림 ---
 var _shake_time: float = 0.0
@@ -64,6 +66,7 @@ func _ready() -> void:
 			_on_peer_character(Net.peer_character)
 
 	_update_score_label()
+	_update_portraits()
 
 
 func _process(delta: float) -> void:
@@ -146,6 +149,9 @@ func _make_player(num: int, pos: Vector2, color: Color) -> Player:
 func _on_peer_character(id: String) -> void:
 	if _remote_player:
 		_remote_player.set_character(id)
+	if _opp_portrait:
+		_opp_portrait.setup(Characters.get_by_id(id)["texture"])
+		_update_portraits()
 
 
 # --- 네트워크 수신 ---
@@ -163,6 +169,7 @@ func _on_peer_event(data: Dictionary) -> void:
 					"dmg": int(data.get("dmg", 25)),
 					"spd": float(data.get("spd", 950.0)),
 					"rad": float(data.get("rad", 1.0)),
+					"range": float(data.get("range", 650.0)),
 					"boom": bool(data.get("boom", false)),
 					"ric": int(data.get("ric", 0)),
 					"stun": bool(data.get("stun", false)),
@@ -201,6 +208,8 @@ func _on_local_died() -> void:
 
 ## 라운드(낱개 대결) 하나가 끝났을 때. 매치 승부가 안 났으면 카드 없이 바로 다음
 ## 라운드로, 매치 승부가 났으면 _end_match() 로 넘어간다.
+## WIN/LOSE 문구 대신 내 캐릭터(또는 상대 캐릭터) 그림이 이긴 만큼 차오르는
+## 걸로 결과를 표현한다(Rounds 원작 연출).
 func _end_round(i_won: bool) -> void:
 	if not _round_active:
 		return
@@ -211,13 +220,13 @@ func _end_round(i_won: bool) -> void:
 	else:
 		opp_round_wins += 1
 	_freeze_players()
+	_update_portraits()
 
 	if my_round_wins >= ROUND_WIN_SCORE or opp_round_wins >= ROUND_WIN_SCORE:
 		_end_match(my_round_wins > opp_round_wins)
 		return
 
 	_update_score_label()
-	_show_banner("WIN" if i_won else "LOSE", "이번 매치 " + str(my_round_wins) + " : " + str(opp_round_wins))
 	await get_tree().create_timer(1.2).timeout
 	_next_round_in_match()
 
@@ -241,7 +250,7 @@ func _end_match(did_i_win_match: bool) -> void:
 		return
 
 	if did_i_win_match and Net.active:
-		_show_banner("WIN", "상대가 카드를 고르는 중...")
+		_show_banner("", "상대가 카드를 고르는 중...")
 	else:
 		_show_card_select()
 
@@ -264,6 +273,7 @@ func _next_match() -> void:
 	my_round_wins = 0
 	opp_round_wins = 0
 	_update_score_label()
+	_update_portraits()
 	_start_new_round()
 
 
@@ -329,11 +339,28 @@ func _build_ui() -> void:
 	add_child(layer)
 	_ui_layer = layer
 
+	# 매치 내 라운드 승수만큼 캐릭터가 차오르는 표시 (나 / 상대)
+	var portrait_row := HBoxContainer.new()
+	portrait_row.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	portrait_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	portrait_row.add_theme_constant_override("separation", 46)
+	portrait_row.offset_top = 8.0
+	layer.add_child(portrait_row)
+
+	_my_portrait = RoundPortrait.new()
+	_my_portrait.setup(Characters.get_by_id(Net.my_character)["texture"])
+	portrait_row.add_child(_my_portrait)
+
+	var opp_id := Net.peer_character if Net.peer_character != "" else Characters.all()[0]["id"]
+	_opp_portrait = RoundPortrait.new()
+	_opp_portrait.setup(Characters.get_by_id(opp_id)["texture"])
+	portrait_row.add_child(_opp_portrait)
+
 	_score_label = Label.new()
-	_score_label.add_theme_font_size_override("font_size", 28)
+	_score_label.add_theme_font_size_override("font_size", 24)
 	_score_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_score_label.set_anchors_preset(Control.PRESET_TOP_WIDE)
-	_score_label.offset_top = 12.0
+	_score_label.offset_top = 92.0
 	layer.add_child(_score_label)
 
 	_banner_container = CenterContainer.new()
@@ -361,15 +388,24 @@ func _build_ui() -> void:
 func _update_score_label() -> void:
 	if _score_label:
 		_score_label.text = (
-			"매치 %d/%d   이번 매치 나 %d : %d 상대\n게임 스코어  나 %d : %d 상대"
-			% [match_num, MAX_MATCHES, my_round_wins, opp_round_wins, my_match_score, opp_match_score]
+			"매치 %d/%d   게임 스코어  나 %d : %d 상대"
+			% [match_num, MAX_MATCHES, my_match_score, opp_match_score]
 		)
 
 
-## main: 큼직하게 표시할 결과(WIN/LOSE 등). sub: 그 아래 작은 부연 설명(선택).
+## 캐릭터 차오름 표시를 현재 라운드 승수에 맞춰 갱신한다.
+func _update_portraits() -> void:
+	if _my_portrait:
+		_my_portrait.set_fill(float(my_round_wins) / float(ROUND_WIN_SCORE))
+	if _opp_portrait:
+		_opp_portrait.set_fill(float(opp_round_wins) / float(ROUND_WIN_SCORE))
+
+
+## main: 큼직하게 표시할 결과(WIN/LOSE 등, 비워두면 숨김). sub: 그 아래 작은 부연 설명(선택).
 func _show_banner(main: String, sub: String = "") -> void:
 	if _banner:
 		_banner.text = main
+		_banner.visible = main != ""
 	if _banner_sub:
 		_banner_sub.text = sub
 		_banner_sub.visible = sub != ""

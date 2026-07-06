@@ -11,7 +11,7 @@ signal took_damage(amount: int)
 const RADIUS := 16.0
 const GRAVITY := 1400.0
 const JUMP_VELOCITY := -640.0
-const FIRE_COOLDOWN := 0.18
+const FIRE_COOLDOWN := 0.36     ## 기본 공속(기존 0.18의 절반 속도 = 쿨다운 2배)
 const NET_SEND_HZ := 20.0
 const LERP_SPEED := 15.0
 const SPRITE_H := 56.0
@@ -22,6 +22,19 @@ const BASE_MOVE_SPEED := 330.0
 const BASE_DAMAGE := 25
 const BASE_BULLET_SPEED := 950.0
 const BASE_JUMPS := 1
+
+# --- 탄창 / 재장전 ---
+const MAG_SIZE_NORMAL := 5
+const MAG_SIZE_SNIPER := 3
+const MAG_SIZE_BUCKSHOT := 5
+const RELOAD_TIME_NORMAL := 3.0
+const RELOAD_TIME_SNIPER := 4.0
+const RELOAD_TIME_BUCKSHOT := 3.0
+
+# --- 사거리 ---
+const RANGE_NORMAL := 650.0
+const RANGE_BUCKSHOT := 320.0
+const RANGE_SNIPER := 1500.0
 
 @export var color: Color = Color(0.30, 0.65, 1.0)
 
@@ -47,6 +60,12 @@ var has_stun_gun: bool = false
 var has_berserker: bool = false
 var weapon_mode: String = "normal"      ## normal / buckshot / sniper
 
+# --- 탄약 (표시용 필드 - is_local이면 여기서 직접 관리, 원격이면 네트워크로 덮어씀) ---
+var ammo: int = MAG_SIZE_NORMAL
+var ammo_max: int = MAG_SIZE_NORMAL
+var reloading: bool = false
+var reload_frac: float = 1.0    ## 재장전 진행률 표시용(0=막 시작, 1=완료)
+
 var _tex: Texture2D = null
 var _tex_size: Vector2 = Vector2.ZERO
 var _jumps_left: int = 0
@@ -56,6 +75,8 @@ var _stun_timer: float = 0.0
 var _slow_timer: float = 0.0
 var _stun_shot_ct: int = 0
 var _cold_shot_ct: int = 0
+var _reload_timer: float = 0.0
+var _reload_time_val: float = RELOAD_TIME_NORMAL
 
 # 원격 인형용
 var _net_pos: Vector2 = Vector2.ZERO
@@ -103,6 +124,7 @@ func _draw() -> void:
 	if alive:
 		draw_line(Vector2.ZERO, _aim * (RADIUS + 18.0), Color.WHITE, 3.0)
 	_draw_health_bar()
+	_draw_ammo_hud()
 
 
 const HP_SEGMENTS := 10
@@ -128,6 +150,29 @@ func _draw_health_bar() -> void:
 		var col := HP_RED if i < filled else HP_EMPTY
 		draw_rect(Rect2(seg_x, y, HP_SEG_W, HP_SEG_H), col)
 		draw_rect(Rect2(seg_x, y, HP_SEG_W, HP_SEG_H), Color(0, 0, 0, 0.9), false, 1.0)
+
+
+const AMMO_ICON_R := 3.0
+const AMMO_GAP := 7.0
+
+
+## 체력바 위쪽에 남은 총알(점) 표시. 재장전 중이면 대신 진행 바를 보여준다.
+func _draw_ammo_hud() -> void:
+	var y := -RADIUS - 34.0
+	if reloading:
+		var w := 40.0
+		var h := 5.0
+		draw_rect(Rect2(-w / 2.0, y - 2.0, w, h), Color(0, 0, 0, 0.55))
+		draw_rect(Rect2(-w / 2.0, y - 2.0, w * clampf(reload_frac, 0.0, 1.0), h), Color(1.0, 0.8, 0.25))
+		return
+
+	var total_w := maxi(ammo_max - 1, 0) * AMMO_GAP
+	var start_x := -total_w / 2.0
+	for i in ammo_max:
+		var x := start_x + i * AMMO_GAP
+		var filled := i < ammo
+		var col := Color(1.0, 0.85, 0.3) if filled else Color(0.25, 0.25, 0.28, 0.9)
+		draw_circle(Vector2(x, y), AMMO_ICON_R, col)
 
 
 ## 발밑에 깔리는 단순한 접지 그림자(실제 바닥면 판정 없이 캐릭터 기준 고정 오프셋).
@@ -167,6 +212,14 @@ func _local_process(delta: float) -> void:
 	var stunned := _stun_timer > 0.0
 	var speed_now := move_speed * (SLOW_MULT if _slow_timer > 0.0 else 1.0)
 
+	if reloading:
+		_reload_timer = maxf(_reload_timer - delta, 0.0)
+		reload_frac = 1.0 - (_reload_timer / _reload_time_val if _reload_time_val > 0.0 else 0.0)
+		if _reload_timer <= 0.0:
+			reloading = false
+			ammo = ammo_max
+			reload_frac = 1.0
+
 	if is_on_floor():
 		_jumps_left = max_jumps
 	else:
@@ -187,9 +240,12 @@ func _local_process(delta: float) -> void:
 		if to_mouse.length() > 1.0:
 			_aim = to_mouse.normalized()
 		_fire_cd = maxf(_fire_cd - delta, 0.0)
-		if Input.is_action_pressed("p1_shoot") and _fire_cd <= 0.0:
+		if Input.is_action_pressed("p1_shoot") and _fire_cd <= 0.0 and not reloading and ammo > 0:
 			_shoot()
 			_fire_cd = _effective_cooldown()
+			ammo -= 1
+			if ammo <= 0:
+				_start_reload()
 
 	_send_accum += delta
 	if Net.active and _send_accum >= 1.0 / NET_SEND_HZ:
@@ -199,6 +255,8 @@ func _local_process(delta: float) -> void:
 			"ax": _aim.x, "ay": _aim.y,
 			"hp": health, "alive": alive,
 			"maxhp": max_health,
+			"ammo": ammo, "ammo_max": ammo_max,
+			"reloading": reloading, "reload_frac": reload_frac,
 		})
 
 
@@ -215,6 +273,10 @@ func apply_net_state(data: Dictionary) -> void:
 	max_health = int(data.get("maxhp", max_health))
 	health = int(data.get("hp", health))
 	alive = bool(data.get("alive", alive))
+	ammo = int(data.get("ammo", ammo))
+	ammo_max = int(data.get("ammo_max", ammo_max))
+	reloading = bool(data.get("reloading", reloading))
+	reload_frac = float(data.get("reload_frac", reload_frac))
 	_has_net = true
 
 
@@ -270,12 +332,19 @@ func _current_bullet_stats() -> Dictionary:
 
 	var spd := BASE_BULLET_SPEED * bullet_speed_mult
 	if weapon_mode == "sniper":
-		spd *= 1.6
+		spd *= 2.0   # 스나이퍼는 기본총보다 탄속 2배
+
+	var rng := RANGE_NORMAL
+	if weapon_mode == "buckshot":
+		rng = RANGE_BUCKSHOT
+	elif weapon_mode == "sniper":
+		rng = RANGE_SNIPER
 
 	return {
 		"dmg": int(round(dmg)),
 		"spd": spd,
 		"rad": bullet_radius_mult,
+		"range": rng,
 		"boom": has_boom,
 		"ric": (2 if has_ricochet else 0),
 		"stun": _stun_proc(),
@@ -291,6 +360,33 @@ func _effective_cooldown() -> float:
 			return 0.5
 		_:
 			return FIRE_COOLDOWN
+
+
+func _mag_size() -> int:
+	match weapon_mode:
+		"sniper":
+			return MAG_SIZE_SNIPER
+		"buckshot":
+			return MAG_SIZE_BUCKSHOT
+		_:
+			return MAG_SIZE_NORMAL
+
+
+func _reload_time() -> float:
+	match weapon_mode:
+		"sniper":
+			return RELOAD_TIME_SNIPER
+		"buckshot":
+			return RELOAD_TIME_BUCKSHOT
+		_:
+			return RELOAD_TIME_NORMAL
+
+
+func _start_reload() -> void:
+	reloading = true
+	_reload_time_val = _reload_time()
+	_reload_timer = _reload_time_val
+	reload_frac = 0.0
 
 
 func _stun_proc() -> bool:
@@ -318,6 +414,7 @@ func _spawn_bullet(pos: Vector2, d: Vector2, stats: Dictionary) -> void:
 	b.damage = int(stats.get("dmg", BASE_DAMAGE))
 	b.speed = float(stats.get("spd", BASE_BULLET_SPEED))
 	b.radius_mult = float(stats.get("rad", 1.0))
+	b.max_range = float(stats.get("range", RANGE_NORMAL))
 	b.boom = bool(stats.get("boom", false))
 	b.ricochet_left = int(stats.get("ric", 0))
 	b.stun_proc = bool(stats.get("stun", false))
@@ -411,6 +508,12 @@ func _recompute_stats() -> void:
 
 	max_health = maxi(int(round(BASE_MAX_HEALTH * maxf(hp_mult, 0.1))), 10)
 
+	ammo_max = _mag_size()
+	ammo = ammo_max
+	reloading = false
+	reload_frac = 1.0
+	_reload_timer = 0.0
+
 
 func reset_for_round(pos: Vector2) -> void:
 	position = pos
@@ -422,3 +525,7 @@ func reset_for_round(pos: Vector2) -> void:
 	_fire_cd = 0.0
 	_stun_timer = 0.0
 	_slow_timer = 0.0
+	ammo = ammo_max
+	reloading = false
+	reload_frac = 1.0
+	_reload_timer = 0.0
