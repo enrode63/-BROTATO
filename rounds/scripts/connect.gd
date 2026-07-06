@@ -29,7 +29,8 @@ func _ready() -> void:
 
 	vb.add_child(_make_label("서버 주소"))
 	_url = LineEdit.new()
-	_url.text = "ws://localhost:9000"
+	# 배포된 중계 서버(Render). 내 PC에서 로컬 테스트할 땐 ws://localhost:9000 으로 바꾸면 됨.
+	_url.text = "wss://rounds-v5uq.onrender.com"
 	_url.custom_minimum_size = Vector2(360, 0)
 	vb.add_child(_url)
 
