@@ -1,6 +1,6 @@
 extends Node2D
 ## 대결 무대 + 라운드 진행 관리자.
-## 벽/발판을 만들고 두 플레이어를 배치하며, 죽음·승패·3판 2선승을 처리한다.
+## 벽/발판을 만들고 두 플레이어를 배치하며, 죽음·승패·3판 2선승·카드 선택을 처리한다.
 
 const ARENA_SIZE := Vector2(1152, 648)
 const WALL := 40.0
@@ -24,8 +24,10 @@ var round_num: int = 1
 var _round_active: bool = true
 var _game_over: bool = false
 
+var _ui_layer: CanvasLayer
 var _score_label: Label
 var _banner: Label
+var _card_screen: CardSelect = null
 
 
 func _ready() -> void:
@@ -100,11 +102,22 @@ func _on_peer_event(data: Dictionary) -> void:
 		"shoot":
 			if _remote_player:
 				var pos := Vector2(float(data.get("x", 0.0)), float(data.get("y", 0.0)))
-				var d := Vector2(float(data.get("dx", 1.0)), float(data.get("dy", 0.0)))
-				_remote_player.spawn_remote_bullet(pos, d)
+				var stats := {
+					"dmg": int(data.get("dmg", 25)),
+					"spd": float(data.get("spd", 950.0)),
+					"rad": float(data.get("rad", 1.0)),
+					"boom": bool(data.get("boom", false)),
+					"ric": int(data.get("ric", 0)),
+					"stun": bool(data.get("stun", false)),
+					"slow": bool(data.get("slow", false)),
+				}
+				for pair in data.get("dirs", []):
+					var d := Vector2(float(pair[0]), float(pair[1]))
+					_remote_player.spawn_remote_bullet(pos, d, stats)
 		"dead":
-			# 상대가 죽었다고 알려옴 → 이번 라운드는 내가 승리
 			_end_round(true)
+		"ready":
+			_on_peer_ready()
 
 
 func _on_peer_left() -> void:
@@ -134,14 +147,24 @@ func _end_round(i_won: bool) -> void:
 
 	if my_score >= WIN_SCORE or opp_score >= WIN_SCORE or round_num >= MAX_ROUNDS:
 		_game_over = true
-		var msg := "최종 승리!" if my_score > opp_score else "패배..."
-		if my_score == opp_score:
-			msg = "무승부"
+		var msg := "무승부"
+		if my_score > opp_score:
+			msg = "최종 승리!"
+		elif opp_score > my_score:
+			msg = "패배..."
 		_show_banner(msg + "\n(" + str(my_score) + " : " + str(opp_score) + ")")
 		return
 
-	_show_banner(("이겼다!" if i_won else "졌다...") + "  라운드 " + str(round_num) + " 종료")
-	await get_tree().create_timer(2.0).timeout
+	if i_won and Net.active:
+		_show_banner("이겼다! 상대가 카드를 고르는 중...")
+	else:
+		_show_card_select()
+
+
+func _on_peer_ready() -> void:
+	if _round_active or _game_over:
+		return
+	_hide_banner()
 	_next_round()
 
 
@@ -168,10 +191,45 @@ func _clear_bullets() -> void:
 			child.queue_free()
 
 
+# --- 카드 선택 (라운드 진 사람만) ---
+func _show_card_select() -> void:
+	if not _local_player:
+		return
+	var pool: Array = Cards.all().filter(func(c): return not _local_player.owned_cards.has(c["id"]))
+	pool.shuffle()
+	var offer: Array = pool.slice(0, mini(3, pool.size()))
+
+	if offer.is_empty():
+		# 이미 카드를 전부 가지고 있으면 그냥 다음 라운드로
+		if Net.active:
+			Net.send_event({"event": "ready"})
+		_next_round()
+		return
+
+	var portrait: Texture2D = load(Characters.get_by_id(Net.my_character)["texture"])
+	var screen := CardSelect.new()
+	screen.setup(offer, portrait)
+	screen.card_chosen.connect(_on_card_chosen)
+	_ui_layer.add_child(screen)
+	_card_screen = screen
+
+
+func _on_card_chosen(id: String) -> void:
+	_local_player.apply_card(id)
+	if _card_screen:
+		_card_screen.queue_free()
+		_card_screen = null
+	if Net.active:
+		Net.send_event({"event": "ready"})
+	await get_tree().create_timer(0.4).timeout
+	_next_round()
+
+
 # --- UI ---
 func _build_ui() -> void:
 	var layer := CanvasLayer.new()
 	add_child(layer)
+	_ui_layer = layer
 
 	_score_label = Label.new()
 	_score_label.add_theme_font_size_override("font_size", 28)
@@ -181,7 +239,7 @@ func _build_ui() -> void:
 	layer.add_child(_score_label)
 
 	_banner = Label.new()
-	_banner.add_theme_font_size_override("font_size", 48)
+	_banner.add_theme_font_size_override("font_size", 42)
 	_banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_banner.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_banner.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -209,23 +267,26 @@ func _hide_banner() -> void:
 func _build_walls() -> void:
 	var w := ARENA_SIZE.x
 	var h := ARENA_SIZE.y
-	_make_solid(Vector2(w / 2, h - WALL / 2), Vector2(w, WALL))
-	_make_solid(Vector2(w / 2, WALL / 2), Vector2(w, WALL))
-	_make_solid(Vector2(WALL / 2, h / 2), Vector2(WALL, h))
-	_make_solid(Vector2(w - WALL / 2, h / 2), Vector2(WALL, h))
+	_make_solid(Vector2(w / 2, h - WALL / 2), Vector2(w, WALL), "y")   # 바닥
+	_make_solid(Vector2(w / 2, WALL / 2), Vector2(w, WALL), "y")       # 천장
+	_make_solid(Vector2(WALL / 2, h / 2), Vector2(WALL, h), "x")       # 왼쪽
+	_make_solid(Vector2(w - WALL / 2, h / 2), Vector2(WALL, h), "x")   # 오른쪽
 
 
 func _build_platforms() -> void:
-	_make_solid(Vector2(576, 470), Vector2(320, 28))
-	_make_solid(Vector2(300, 320), Vector2(230, 28))
-	_make_solid(Vector2(852, 320), Vector2(230, 28))
+	_make_solid(Vector2(576, 470), Vector2(320, 28), "y")
+	_make_solid(Vector2(300, 320), Vector2(230, 28), "y")
+	_make_solid(Vector2(852, 320), Vector2(230, 28), "y")
 
 
-func _make_solid(center: Vector2, size: Vector2) -> void:
+## axis="x": 좌우로 튕겨야 하는 세로 벽 / axis="y": 위아래로 튕겨야 하는 가로면(바닥/발판).
+## RICOCHET 카드가 벽에 부딫힌 탄환을 어느 방향으로 반사할지 판단하는 데 쓰인다.
+func _make_solid(center: Vector2, size: Vector2, axis: String = "y") -> void:
 	var body := StaticBody2D.new()
 	body.position = center
 	body.collision_layer = 0b0001
 	body.collision_mask = 0
+	body.set_meta("axis", axis)
 
 	var shape := CollisionShape2D.new()
 	var rect := RectangleShape2D.new()
