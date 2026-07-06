@@ -40,6 +40,9 @@ func _ready() -> void:
 func _draw() -> void:
 	# 팀(쏜 사람) 색으로 그려서 서로 헷갈리지 않게 한다.
 	var col: Color = shooter.color if shooter else Color(1.0, 0.9, 0.35)
+	# 날아온 방향 반대쪽으로 살짝 늘어지는 잔상(트레일)
+	var tail := -direction * _radius * 3.5
+	draw_line(Vector2.ZERO, tail, Color(col, 0.35), _radius * 1.4)
 	draw_circle(Vector2.ZERO, _radius, col)
 	draw_arc(Vector2.ZERO, _radius, 0.0, TAU, 12, Color(1, 1, 1, 0.55), 1.2)
 

@@ -31,8 +31,15 @@ var _game_over: bool = false
 
 var _ui_layer: CanvasLayer
 var _score_label: Label
+var _banner_container: CenterContainer
 var _banner: Label
+var _banner_sub: Label
 var _card_screen: CardSelect = null
+
+# --- 화면 흔들림 ---
+var _shake_time: float = 0.0
+var _shake_duration: float = 0.0
+var _shake_strength: float = 0.0
 
 
 func _ready() -> void:
@@ -47,6 +54,7 @@ func _ready() -> void:
 
 	if _local_player:
 		_local_player.died.connect(_on_local_died)
+		_local_player.took_damage.connect(_on_local_took_damage)
 
 	# 내 캐릭터를 상대에게 알리고, 상대 캐릭터를 받는다.
 	if Net.active:
@@ -58,8 +66,52 @@ func _ready() -> void:
 	_update_score_label()
 
 
+func _process(delta: float) -> void:
+	if _shake_time <= 0.0:
+		return
+	_shake_time = maxf(_shake_time - delta, 0.0)
+	var frac := _shake_time / _shake_duration if _shake_duration > 0.0 else 0.0
+	var s := _shake_strength * frac
+	position = Vector2(randf_range(-s, s), randf_range(-s, s))
+	if _shake_time <= 0.0:
+		position = Vector2.ZERO
+
+
+## 화면을 잠깐 흔든다(피격 등 임팩트 연출용). strength=최대 흔들림 픽셀, duration=지속 시간(초).
+func shake(strength: float, duration: float) -> void:
+	_shake_strength = strength
+	_shake_duration = duration
+	_shake_time = duration
+
+
+func _on_local_took_damage(amount: int) -> void:
+	shake(minf(4.0 + amount * 0.15, 14.0), 0.25)
+
+
 func _draw() -> void:
-	draw_rect(Rect2(Vector2.ZERO, ARENA_SIZE), BG_COLOR)
+	_draw_background()
+
+
+## 단색이라 밋밋했던 배경에 은은한 명암 그라데이션 + 아주 옅은 격자를 얹는다.
+func _draw_background() -> void:
+	var bands := 6
+	var top_col := BG_COLOR.lightened(0.12)
+	var bottom_col := BG_COLOR.darkened(0.18)
+	var band_h := ARENA_SIZE.y / float(bands)
+	for i in bands:
+		var t := float(i) / float(bands - 1)
+		var col := top_col.lerp(bottom_col, t)
+		draw_rect(Rect2(0, band_h * i, ARENA_SIZE.x, band_h + 1.0), col)
+
+	var grid_col := Color(1, 1, 1, 0.035)
+	var x := 0.0
+	while x <= ARENA_SIZE.x:
+		draw_line(Vector2(x, 0), Vector2(x, ARENA_SIZE.y), grid_col, 1.0)
+		x += 64.0
+	var y := 0.0
+	while y <= ARENA_SIZE.y:
+		draw_line(Vector2(0, y), Vector2(ARENA_SIZE.x, y), grid_col, 1.0)
+		y += 64.0
 
 
 # --- 플레이어 배치 ---
@@ -165,7 +217,7 @@ func _end_round(i_won: bool) -> void:
 		return
 
 	_update_score_label()
-	_show_banner(("이겼다!" if i_won else "졌다...") + "\n이번 매치 " + str(my_round_wins) + " : " + str(opp_round_wins))
+	_show_banner("WIN" if i_won else "LOSE", "이번 매치 " + str(my_round_wins) + " : " + str(opp_round_wins))
 	await get_tree().create_timer(1.2).timeout
 	_next_round_in_match()
 
@@ -180,16 +232,16 @@ func _end_match(did_i_win_match: bool) -> void:
 
 	if my_match_score >= MATCH_WIN_SCORE or opp_match_score >= MATCH_WIN_SCORE or match_num >= MAX_MATCHES:
 		_game_over = true
-		var msg := "무승부"
+		var msg := "DRAW"
 		if my_match_score > opp_match_score:
-			msg = "최종 승리!"
+			msg = "WIN"
 		elif opp_match_score > my_match_score:
-			msg = "패배..."
-		_show_banner(msg + "\n(매치 스코어 " + str(my_match_score) + " : " + str(opp_match_score) + ")")
+			msg = "LOSE"
+		_show_banner(msg, "매치 스코어 " + str(my_match_score) + " : " + str(opp_match_score))
 		return
 
 	if did_i_win_match and Net.active:
-		_show_banner("매치 승리!\n상대가 카드를 고르는 중...")
+		_show_banner("WIN", "상대가 카드를 고르는 중...")
 	else:
 		_show_card_select()
 
@@ -284,13 +336,26 @@ func _build_ui() -> void:
 	_score_label.offset_top = 12.0
 	layer.add_child(_score_label)
 
+	_banner_container = CenterContainer.new()
+	_banner_container.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_banner_container.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_banner_container.visible = false
+	layer.add_child(_banner_container)
+
+	var banner_vb := VBoxContainer.new()
+	banner_vb.alignment = BoxContainer.ALIGNMENT_CENTER
+	banner_vb.add_theme_constant_override("separation", 8)
+	_banner_container.add_child(banner_vb)
+
 	_banner = Label.new()
-	_banner.add_theme_font_size_override("font_size", 42)
+	_banner.add_theme_font_size_override("font_size", 60)
 	_banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_banner.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	_banner.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_banner.visible = false
-	layer.add_child(_banner)
+	banner_vb.add_child(_banner)
+
+	_banner_sub = Label.new()
+	_banner_sub.add_theme_font_size_override("font_size", 22)
+	_banner_sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	banner_vb.add_child(_banner_sub)
 
 
 func _update_score_label() -> void:
@@ -301,15 +366,20 @@ func _update_score_label() -> void:
 		)
 
 
-func _show_banner(text: String) -> void:
+## main: 큼직하게 표시할 결과(WIN/LOSE 등). sub: 그 아래 작은 부연 설명(선택).
+func _show_banner(main: String, sub: String = "") -> void:
 	if _banner:
-		_banner.text = text
-		_banner.visible = true
+		_banner.text = main
+	if _banner_sub:
+		_banner_sub.text = sub
+		_banner_sub.visible = sub != ""
+	if _banner_container:
+		_banner_container.visible = true
 
 
 func _hide_banner() -> void:
-	if _banner:
-		_banner.visible = false
+	if _banner_container:
+		_banner_container.visible = false
 
 
 # --- 무대 만들기 ---
@@ -322,10 +392,12 @@ func _build_walls() -> void:
 	_make_solid(Vector2(w - WALL / 2, h / 2), Vector2(WALL, h), "x")   # 오른쪽
 
 
+## 발판 높이는 실제 점프 물리(최대 상승 높이 ≈ 146px)로 닿을 수 있게 배치한다.
+## 가운데 발판은 바닥에서 바로, 양옆 위쪽 발판은 가운데 발판을 밟고 올라가는 구조.
 func _build_platforms() -> void:
-	_make_solid(Vector2(576, 470), Vector2(320, 28), "y")
-	_make_solid(Vector2(300, 320), Vector2(230, 28), "y")
-	_make_solid(Vector2(852, 320), Vector2(230, 28), "y")
+	_make_solid(Vector2(576, 520), Vector2(320, 28), "y")
+	_make_solid(Vector2(300, 410), Vector2(230, 28), "y")
+	_make_solid(Vector2(852, 410), Vector2(230, 28), "y")
 
 
 ## axis="x": 좌우로 튕겨야 하는 세로 벽 / axis="y": 위아래로 튕겨야 하는 가로면(바닥/발판).
@@ -344,14 +416,33 @@ func _make_solid(center: Vector2, size: Vector2, axis: String = "y") -> void:
 	body.add_child(shape)
 
 	var half := size / 2.0
-	var poly := Polygon2D.new()
-	poly.polygon = PackedVector2Array([
+	var rect_pts := PackedVector2Array([
 		Vector2(-half.x, -half.y),
 		Vector2(half.x, -half.y),
 		Vector2(half.x, half.y),
 		Vector2(-half.x, half.y),
 	])
+
+	# 그림자(살짝 어긋난 어두운 사각형 - 단색 배경에 입체감을 준다)
+	var shadow := Polygon2D.new()
+	shadow.polygon = rect_pts
+	shadow.color = Color(0, 0, 0, 0.30)
+	shadow.position = Vector2(5, 7)
+	body.add_child(shadow)
+
+	var poly := Polygon2D.new()
+	poly.polygon = rect_pts
 	poly.color = SOLID_COLOR
 	body.add_child(poly)
+
+	# 위쪽 밝은 하이라이트 띠(빛 받는 느낌)
+	var hh := minf(half.y, 5.0)
+	var highlight := Polygon2D.new()
+	highlight.polygon = PackedVector2Array([
+		Vector2(-half.x, -half.y), Vector2(half.x, -half.y),
+		Vector2(half.x, -half.y + hh), Vector2(-half.x, -half.y + hh),
+	])
+	highlight.color = Color(1, 1, 1, 0.10)
+	body.add_child(highlight)
 
 	add_child(body)

@@ -6,10 +6,11 @@ extends CharacterBody2D
 ##  - is_local=false : 상대(원격) 인형. 네트워크로 받은 위치/조준/체력으로 표시.
 
 signal died
+signal took_damage(amount: int)
 
 const RADIUS := 16.0
-const GRAVITY := 1500.0
-const JUMP_VELOCITY := -580.0
+const GRAVITY := 1400.0
+const JUMP_VELOCITY := -640.0
 const FIRE_COOLDOWN := 0.18
 const NET_SEND_HZ := 20.0
 const LERP_SPEED := 15.0
@@ -91,6 +92,7 @@ func set_character(id: String) -> void:
 
 
 func _draw() -> void:
+	_draw_shadow()
 	var dim := 1.0 if alive else 0.3
 	# 팀(1P 파랑 / 2P 빨강) 구분용 발밑 링
 	draw_arc(Vector2.ZERO, RADIUS + 3.0, 0.0, TAU, 28, Color(color, dim), 3.0)
@@ -126,6 +128,18 @@ func _draw_health_bar() -> void:
 		var col := HP_RED if i < filled else HP_EMPTY
 		draw_rect(Rect2(seg_x, y, HP_SEG_W, HP_SEG_H), col)
 		draw_rect(Rect2(seg_x, y, HP_SEG_W, HP_SEG_H), Color(0, 0, 0, 0.9), false, 1.0)
+
+
+## 발밑에 깔리는 단순한 접지 그림자(실제 바닥면 판정 없이 캐릭터 기준 고정 오프셋).
+func _draw_shadow() -> void:
+	var pts := PackedVector2Array()
+	var rx := RADIUS * 0.9
+	var ry := RADIUS * 0.35
+	var n := 16
+	for i in n:
+		var a := TAU * i / n
+		pts.append(Vector2(cos(a) * rx, RADIUS + 6.0 + sin(a) * ry))
+	draw_polygon(pts, PackedColorArray([Color(0, 0, 0, 0.35)]))
 
 
 func _draw_heart(center: Vector2, r: float) -> void:
@@ -317,6 +331,7 @@ func take_damage(amount: int) -> void:
 	if not is_local or not alive or not active:
 		return
 	health = maxi(health - amount, 0)
+	took_damage.emit(amount)
 	if health == 0:
 		alive = false
 		died.emit()

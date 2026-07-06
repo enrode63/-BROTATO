@@ -36,7 +36,7 @@ func setup(cards: Array, portrait_tex: Texture2D) -> void:
 	vb.add_child(top_spacer)
 
 	var title := Label.new()
-	title.text = "매치 패배 — 능력치 카드 선택"
+	title.text = "LOSE  —  카드 선택"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_size_override("font_size", 26)
 	vb.add_child(title)
@@ -52,19 +52,28 @@ func setup(cards: Array, portrait_tex: Texture2D) -> void:
 
 func _make_card_button(c: Dictionary) -> Button:
 	var btn := Button.new()
-	btn.custom_minimum_size = Vector2(200, 260)
+	btn.custom_minimum_size = Vector2(200, 300)
 	btn.pressed.connect(func(): card_chosen.emit(c["id"]))
+	_style_card_button(btn)
 
 	var inner := VBoxContainer.new()
 	inner.set_anchors_preset(Control.PRESET_FULL_RECT)
-	inner.add_theme_constant_override("separation", 12)
+	inner.add_theme_constant_override("separation", 10)
 	inner.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	btn.add_child(inner)
 
 	var top_pad := Control.new()
-	top_pad.custom_minimum_size = Vector2(0, 20)
+	top_pad.custom_minimum_size = Vector2(0, 14)
 	top_pad.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	inner.add_child(top_pad)
+
+	var icon_center := CenterContainer.new()
+	icon_center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var icon := CardIcon.new()
+	icon.setup(c["id"])
+	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	icon_center.add_child(icon)
+	inner.add_child(icon_center)
 
 	var name_l := Label.new()
 	name_l.text = c["name"]
@@ -82,3 +91,28 @@ func _make_card_button(c: Dictionary) -> Button:
 	inner.add_child(desc_l)
 
 	return btn
+
+
+## 카드가 밋밋해 보이지 않도록 뚜렷한 테두리 + 둥근 모서리를 입힌다.
+func _style_card_button(btn: Button) -> void:
+	var normal := StyleBoxFlat.new()
+	normal.bg_color = Color(0.13, 0.14, 0.20)
+	normal.border_color = Color(0.55, 0.62, 0.85)
+	normal.set_border_width_all(3)
+	normal.set_corner_radius_all(10)
+	normal.content_margin_left = 8.0
+	normal.content_margin_right = 8.0
+	normal.content_margin_top = 8.0
+	normal.content_margin_bottom = 8.0
+
+	var hover: StyleBoxFlat = normal.duplicate()
+	hover.bg_color = Color(0.18, 0.20, 0.28)
+	hover.border_color = Color(0.85, 0.9, 1.0)
+
+	var pressed: StyleBoxFlat = normal.duplicate()
+	pressed.bg_color = Color(0.10, 0.11, 0.16)
+
+	btn.add_theme_stylebox_override("normal", normal)
+	btn.add_theme_stylebox_override("hover", hover)
+	btn.add_theme_stylebox_override("pressed", pressed)
+	btn.add_theme_stylebox_override("focus", hover)
