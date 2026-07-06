@@ -351,7 +351,7 @@ func _build_ui() -> void:
 	_my_portrait.setup(Characters.get_by_id(Net.my_character)["texture"])
 	portrait_row.add_child(_my_portrait)
 
-	var opp_id := Net.peer_character if Net.peer_character != "" else Characters.all()[0]["id"]
+	var opp_id: String = Net.peer_character if Net.peer_character != "" else Characters.all()[0]["id"]
 	_opp_portrait = RoundPortrait.new()
 	_opp_portrait.setup(Characters.get_by_id(opp_id)["texture"])
 	portrait_row.add_child(_opp_portrait)
