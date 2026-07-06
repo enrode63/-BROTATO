@@ -6,6 +6,7 @@ var _url: LineEdit
 var _room: LineEdit
 var _btn: Button
 var _status: Label
+var _char_buttons: Array = []      ## [{id, button}] 캐릭터 선택 버튼들
 
 
 func _ready() -> void:
@@ -26,6 +27,16 @@ func _ready() -> void:
 	title.text = "ROUNDS 온라인 대전"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vb.add_child(title)
+
+	# --- 캐릭터 선택 ---
+	vb.add_child(_make_label("캐릭터 선택"))
+	var char_row := HBoxContainer.new()
+	char_row.add_theme_constant_override("separation", 14)
+	char_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	vb.add_child(char_row)
+	for c in Characters.all():
+		char_row.add_child(_make_char_entry(c))
+	_highlight_selected()
 
 	vb.add_child(_make_label("서버 주소"))
 	_url = LineEdit.new()
@@ -56,7 +67,41 @@ func _ready() -> void:
 func _make_label(t: String) -> Label:
 	var l := Label.new()
 	l.text = t
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	return l
+
+
+## 캐릭터 하나의 세로 묶음: 초상화 + 이름 버튼
+func _make_char_entry(c: Dictionary) -> Control:
+	var col := VBoxContainer.new()
+	col.alignment = BoxContainer.ALIGNMENT_CENTER
+
+	var portrait := TextureRect.new()
+	portrait.texture = load(c["texture"])
+	portrait.custom_minimum_size = Vector2(80, 80)
+	portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	col.add_child(portrait)
+
+	var btn := Button.new()
+	btn.text = c["name"]
+	btn.pressed.connect(_on_char_pressed.bind(c["id"]))
+	col.add_child(btn)
+
+	_char_buttons.append({"id": c["id"], "button": btn})
+	return col
+
+
+func _on_char_pressed(id: String) -> void:
+	Net.my_character = id
+	_highlight_selected()
+
+
+func _highlight_selected() -> void:
+	for entry in _char_buttons:
+		var selected: bool = entry["id"] == Net.my_character
+		var btn: Button = entry["button"]
+		btn.modulate = Color(0.4, 1.0, 0.5) if selected else Color(1, 1, 1)
 
 
 func _on_connect_pressed() -> void:

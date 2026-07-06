@@ -14,12 +14,17 @@ const FIRE_COOLDOWN := 0.18
 const NET_SEND_HZ := 20.0
 const LERP_SPEED := 15.0
 
+const SPRITE_H := 56.0             ## 화면에 그릴 캐릭터 이미지 높이(px)
+
 @export var color: Color = Color(0.30, 0.65, 1.0)
 @export var move_speed: float = 330.0
 @export var max_jumps: int = 1
 @export var max_health: int = 100
 
 var player_num: int = 1
+var character_id: String = "ssumawang"
+var _tex: Texture2D = null
+var _tex_size: Vector2 = Vector2.ZERO
 var is_local: bool = true
 var health: int = 100
 var alive: bool = true
@@ -48,13 +53,30 @@ func _ready() -> void:
 	add_child(shape)
 
 	_net_pos = position
+	set_character(character_id)
+
+
+## 캐릭터(스킨) 지정. 접속 후 상대 캐릭터를 받으면 다시 호출된다.
+func set_character(id: String) -> void:
+	character_id = id
+	var c := Characters.get_by_id(id)
+	_tex = load(c["texture"])
+	if _tex:
+		var scale := SPRITE_H / float(_tex.get_height())
+		_tex_size = Vector2(_tex.get_width() * scale, _tex.get_height() * scale)
+	queue_redraw()
 
 
 func _draw() -> void:
-	var body_col := color if alive else Color(color, 0.28)
-	draw_circle(Vector2.ZERO, RADIUS, body_col)
+	var dim := 1.0 if alive else 0.3
+	# 팀(1P 파랑 / 2P 빨강) 구분용 발밑 링
+	draw_arc(Vector2.ZERO, RADIUS + 3.0, 0.0, TAU, 28, Color(color, dim), 3.0)
+	if _tex:
+		draw_texture_rect(_tex, Rect2(-_tex_size / 2.0, _tex_size), false, Color(1, 1, 1, dim))
+	else:
+		draw_circle(Vector2.ZERO, RADIUS, Color(color, dim))
 	if alive:
-		draw_line(Vector2.ZERO, _aim * (RADIUS + 16.0), Color.WHITE, 3.0)
+		draw_line(Vector2.ZERO, _aim * (RADIUS + 18.0), Color.WHITE, 3.0)
 	_draw_health_bar()
 
 

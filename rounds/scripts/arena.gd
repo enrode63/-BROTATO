@@ -41,6 +41,13 @@ func _ready() -> void:
 	if _local_player:
 		_local_player.died.connect(_on_local_died)
 
+	# 내 캐릭터를 상대에게 알리고, 상대 캐릭터를 받는다.
+	if Net.active:
+		Net.send_character()
+		Net.peer_character_changed.connect(_on_peer_character)
+		if Net.peer_character != "":
+			_on_peer_character(Net.peer_character)
+
 	_update_score_label()
 
 
@@ -69,8 +76,17 @@ func _make_player(num: int, pos: Vector2, color: Color) -> Player:
 	p.is_local = (not Net.active) or (num == Net.my_player)
 	p.color = color
 	p.position = pos
+	if p.is_local:
+		p.character_id = Net.my_character
+	elif Net.peer_character != "":
+		p.character_id = Net.peer_character
 	add_child(p)
 	return p
+
+
+func _on_peer_character(id: String) -> void:
+	if _remote_player:
+		_remote_player.set_character(id)
 
 
 # --- 네트워크 수신 ---

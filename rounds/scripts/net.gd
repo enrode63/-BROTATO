@@ -8,9 +8,12 @@ signal closed                 ## 연결 실패 또는 끊김
 signal peer_state(data: Dictionary)   ## 상대 위치/조준 갱신
 signal peer_event(data: Dictionary)   ## 상대 이벤트(사격 등)
 signal peer_left              ## 상대가 나감
+signal peer_character_changed(id: String)   ## 상대가 고른 캐릭터
 
 var active: bool = false      ## 온라인 세션 진행 중인가
 var my_player: int = 0        ## 서버가 알려준 내 번호 (1 또는 2)
+var my_character: String = "ssumawang"      ## 내가 고른 캐릭터
+var peer_character: String = ""             ## 상대가 고른 캐릭터(마지막 수신값)
 
 var _ws := WebSocketPeer.new()
 var _room: String = ""
@@ -57,6 +60,9 @@ func _handle(txt: String) -> void:
 			peer_state.emit(data)
 		"event":
 			peer_event.emit(data)
+		"char":
+			peer_character = str(data.get("id", ""))
+			peer_character_changed.emit(peer_character)
 		"peer_left":
 			peer_left.emit()
 		"full":
@@ -72,6 +78,10 @@ func send_state(data: Dictionary) -> void:
 func send_event(data: Dictionary) -> void:
 	data["type"] = "event"
 	_send(data)
+
+
+func send_character() -> void:
+	_send({"type": "char", "id": my_character})
 
 
 func _send(d: Dictionary) -> void:
