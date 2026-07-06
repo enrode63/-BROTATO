@@ -41,10 +41,10 @@ func _cast_skill() -> void:
 func _cast_meteors() -> void:
 	if _player == null or not is_instance_valid(_player):
 		return
-	for i in 3:
+	for i in 6:
 		var m := Meteor.new()
-		var off := Vector2(_rng.randf_range(-130.0, 130.0), _rng.randf_range(-130.0, 130.0))
-		m.setup(_player.global_position + off, 22)
+		var off := Vector2(_rng.randf_range(-240.0, 240.0), _rng.randf_range(-240.0, 240.0))
+		m.setup(_player.global_position + off, 20)
 		get_tree().current_scene.add_child(m)
 
 

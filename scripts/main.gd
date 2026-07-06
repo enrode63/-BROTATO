@@ -25,6 +25,8 @@ var _font_display: Font
 var _throw_boxes: Dictionary = {}
 var _throw_labels: Dictionary = {}
 var _boss_wave: bool = false
+var _boss_pending: bool = false
+var _boss_spawn_timer: float = 0.0
 var _single_boss_index: int = 0
 var _banner_label: Label
 var _banner_time: float = 0.0
@@ -70,8 +72,8 @@ func _start_wave() -> void:
 	spawn_timer = 0.0
 	_center_label.text = ""
 	_boss_wave = wave % 5 == 0
-	if _boss_wave:
-		_spawn_bosses()
+	_boss_pending = _boss_wave
+	_boss_spawn_timer = 10.0  # 보스는 웨이브 시작 10초 후 등장
 
 
 func _process_wave(delta: float) -> void:
@@ -81,9 +83,16 @@ func _process_wave(delta: float) -> void:
 		_spawn_enemy()
 		# 보스 웨이브엔 잡몹 스폰을 줄이고, 아니면 웨이브마다 더 빠르게.
 		spawn_timer = 2.5 if _boss_wave else maxf(0.22, 1.3 - float(wave) * 0.09)
+
+	if _boss_pending:
+		_boss_spawn_timer -= delta
+		if _boss_spawn_timer <= 0.0:
+			_spawn_bosses()
+			_boss_pending = false
+
 	if _boss_wave:
-		# 보스를 모두 처치해야 웨이브 클리어.
-		if get_tree().get_nodes_in_group("boss").is_empty():
+		# 보스를 모두 처치해야 웨이브 클리어 (보스 등장 전엔 클리어 안 됨).
+		if not _boss_pending and get_tree().get_nodes_in_group("boss").is_empty():
 			_end_wave()
 	elif timer <= 0.0:
 		_end_wave()
@@ -427,7 +436,9 @@ func _update_hud() -> void:
 	_wave_label.text = "WAVE %d" % wave
 	match state:
 		State.WAVE:
-			if _boss_wave:
+			if _boss_wave and _boss_pending:
+				_timer_label.text = "보스 %d초" % int(ceil(maxf(_boss_spawn_timer, 0.0)))
+			elif _boss_wave:
 				_timer_label.text = "보스 %d" % get_tree().get_nodes_in_group("boss").size()
 			else:
 				_timer_label.text = str(int(ceil(maxf(timer, 0.0))))
