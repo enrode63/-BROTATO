@@ -34,8 +34,15 @@ var _player: Node2D = null
 var _attack_cooldown: float = 0.0
 var _has_sprite: bool = false
 var _knockback: Vector2 = Vector2.ZERO
+## 서영교가 소환한 파란 몹: 피격 시 플레이어를 둔화시킨다.
+@export var slow_on_hit: bool = false
+
+var base_modulate: Color = Color.WHITE
 var _age: float = 0.0
 var _stun: float = 0.0
+var _bleed_dps: float = 0.0
+var _bleed_time: float = 0.0
+var _bleed_tick: float = 0.0
 var _fleeing: bool = false
 var _wander_target: Vector2 = Vector2.ZERO
 var _repick_cd: float = 0.0
@@ -74,6 +81,16 @@ func _build_sprite() -> void:
 func _physics_process(delta: float) -> void:
 	_age += delta
 
+	# 출혈(커터칼 만렙): 시간당 지속 피해.
+	if _bleed_time > 0.0:
+		_bleed_time -= delta
+		_bleed_tick -= delta
+		if _bleed_tick <= 0.0:
+			_bleed_tick = 0.4
+			take_damage(int(ceil(_bleed_dps * 0.4)))
+			if health <= 0:
+				return
+
 	# 스턴(골드 카드): 잠깐 멈춘다. 넉백은 계속 받는다.
 	if _stun > 0.0:
 		_stun -= delta
@@ -82,7 +99,7 @@ func _physics_process(delta: float) -> void:
 		move_and_slide()
 		_knockback = _knockback.move_toward(Vector2.ZERO, KNOCKBACK_DECAY * delta)
 		if _stun <= 0.0:
-			modulate = Color.WHITE
+			modulate = base_modulate
 		return
 
 	# 황금 고블린: 도망치는 중이면 맵 밖으로 이탈 후 사라진다.
@@ -124,6 +141,8 @@ func _physics_process(delta: float) -> void:
 	if dist <= body_radius + 18.0 and _attack_cooldown <= 0.0:
 		if _player.has_method("take_damage"):
 			_player.take_damage(contact_damage)
+		if slow_on_hit and _player.has_method("apply_slow"):
+			_player.apply_slow(1.0)
 		_attack_cooldown = 0.6
 
 
@@ -178,6 +197,11 @@ func apply_knockback(impulse: Vector2) -> void:
 
 func apply_stun(seconds: float) -> void:
 	_stun = maxf(_stun, seconds)
+
+
+func apply_bleed(dps: float, duration: float) -> void:
+	_bleed_dps = maxf(_bleed_dps, dps)
+	_bleed_time = maxf(_bleed_time, duration)
 
 
 func take_damage(amount: int) -> void:

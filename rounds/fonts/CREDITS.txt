@@ -1,0 +1,5 @@
+Fonts (SIL Open Font License 1.1):
+- Black Han Sans  (c) Zess, Google Fonts
+- Jua            (c) Woowahan Brothers, Google Fonts
+- Gothic A1      (c) Hanyang Information & Communications, Google Fonts
+Source: https://fonts.google.com  |  License: https://scripts.sil.org/OFL

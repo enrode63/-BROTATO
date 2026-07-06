@@ -45,6 +45,9 @@ func _fire(_target: Node2D) -> void:
 			continue
 		if global_position.distance_to(e.global_position) <= reach and e.has_method("take_damage"):
 			e.take_damage(dmg)
+			# 만렙: 출혈(지속 피해) 추가.
+			if level >= Weapon.MAX_LEVEL and e.has_method("apply_bleed"):
+				e.apply_bleed(float(dmg) * 0.6, 3.0)
 	_swing_left = SWING_DUR
 	_swing_dir *= -1.0
 	queue_redraw()

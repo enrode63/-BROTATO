@@ -53,6 +53,7 @@ var throwable_counts: Dictionary = {"grenade": 0, "flashbang": 0, "molotov": 0}
 var input_enabled: bool = true     ## false while the shop is open
 var _start_weapon_id: String = "camera"
 var _lifesteal_accum: float = 0.0
+var _slow_time: float = 0.0
 
 
 func _ready() -> void:
@@ -200,9 +201,9 @@ func apply_upgrade(id: String) -> bool:
 		"tricep": stat_damage_pct += 5.0
 		"leg": stat_speed_pct += 3.0
 		"heart": _add_hp_pct(5.0)
-		"spine": stat_armor += 1
-		"tooth": stat_lifesteal += 1.0
-		"monkey": stat_bonus_gold += 1
+		"spine": stat_armor = mini(5, stat_armor + 1)      # 최대 방어력 5
+		"tooth": stat_lifesteal = minf(5.0, stat_lifesteal + 1.0)  # 최대 흡혈 5%
+		"monkey": stat_bonus_gold = mini(5, stat_bonus_gold + 1)
 		"heal": health = min(max_health, health + int(ceil(max_health * 0.25)))
 		# legacy ids
 		"hand": stat_damage_pct += 3.0
@@ -220,6 +221,10 @@ func _add_hp_pct(amount: float) -> void:
 	var diff := new_max - max_health
 	max_health = new_max
 	health += diff
+
+
+func apply_slow(duration: float) -> void:
+	_slow_time = maxf(_slow_time, duration)
 
 
 func lifesteal_heal(damage_dealt: int) -> void:
@@ -259,7 +264,11 @@ func _throw(id: String) -> void:
 func _physics_process(delta: float) -> void:
 	if not _alive:
 		return
-	var speed := move_speed * (1.0 + stat_speed_pct / 100.0)
+	var slow_mult := 1.0
+	if _slow_time > 0.0:
+		_slow_time -= delta
+		slow_mult = 0.5
+	var speed := move_speed * (1.0 + stat_speed_pct / 100.0) * slow_mult
 	velocity = _input_direction() * speed
 	move_and_slide()
 	# Keep the player inside the arena.

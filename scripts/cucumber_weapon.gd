@@ -4,6 +4,9 @@ extends Weapon
 ## line of enemies.
 
 
+var _orbits_spawned: bool = false
+
+
 func _init() -> void:
 	weapon_id = "cucumber"
 	cooldown = 1.1
@@ -11,6 +14,20 @@ func _init() -> void:
 	damage = 14
 	icon_path = "res://assets/weapon_cucumber.png"
 	icon_size = 34.0
+
+
+func _process(delta: float) -> void:
+	super._process(delta)
+	# 만렙: 플레이어 주변을 맴도는 오이 3개 생성 (1회).
+	if level >= Weapon.MAX_LEVEL and not _orbits_spawned:
+		_orbits_spawned = true
+		var p := _player()
+		if p != null:
+			for i in 3:
+				var o := OrbitCucumber.new()
+				o.angle_offset = TAU * float(i) / 3.0
+				o.damage = effective_damage(10)
+				p.add_child(o)
 
 
 func _fire(target: Node2D) -> void:

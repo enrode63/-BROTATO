@@ -24,6 +24,10 @@ var _center_label: Label
 var _font_display: Font
 var _throw_boxes: Dictionary = {}
 var _throw_labels: Dictionary = {}
+var _boss_wave: bool = false
+var _single_boss_index: int = 0
+var _banner_label: Label
+var _banner_time: float = 0.0
 
 
 func _ready() -> void:
@@ -43,7 +47,17 @@ func _process(delta: float) -> void:
 		State.GAMEOVER:
 			if Input.is_physical_key_pressed(KEY_R):
 				get_tree().change_scene_to_file("res://scenes/character_select.tscn")
+	_update_banner(delta)
 	_update_hud()
+
+
+func _update_banner(delta: float) -> void:
+	if _banner_time > 0.0:
+		_banner_time -= delta
+		_banner_label.visible = true
+		_banner_label.modulate.a = clampf(_banner_time, 0.0, 1.0)
+	elif _banner_label != null:
+		_banner_label.visible = false
 
 
 # --- Wave loop ---------------------------------------------------------------
@@ -55,6 +69,9 @@ func _start_wave() -> void:
 	timer = WAVE_DURATION
 	spawn_timer = 0.0
 	_center_label.text = ""
+	_boss_wave = wave % 5 == 0
+	if _boss_wave:
+		_spawn_bosses()
 
 
 func _process_wave(delta: float) -> void:
@@ -62,10 +79,72 @@ func _process_wave(delta: float) -> void:
 	spawn_timer -= delta
 	if spawn_timer <= 0.0:
 		_spawn_enemy()
-		# 웨이브가 거듭될수록 더 많이/빠르게 스폰.
-		spawn_timer = maxf(0.22, 1.3 - float(wave) * 0.09)
-	if timer <= 0.0:
+		# 보스 웨이브엔 잡몹 스폰을 줄이고, 아니면 웨이브마다 더 빠르게.
+		spawn_timer = 2.5 if _boss_wave else maxf(0.22, 1.3 - float(wave) * 0.09)
+	if _boss_wave:
+		# 보스를 모두 처치해야 웨이브 클리어.
+		if get_tree().get_nodes_in_group("boss").is_empty():
+			_end_wave()
+	elif timer <= 0.0:
 		_end_wave()
+
+
+# --- Bosses ------------------------------------------------------------------
+
+func _spawn_bosses() -> void:
+	if wave % 10 == 0:
+		_spawn_boss("seoyounggyo")
+		_spawn_boss("chahyeonseung")
+		show_banner("⚠ WARNING ⚠\n보스 2체 등장!", Color(1.0, 0.25, 0.25))
+	else:
+		var t := "seoyounggyo" if _single_boss_index % 2 == 0 else "chahyeonseung"
+		_single_boss_index += 1
+		var nm := "서영교" if t == "seoyounggyo" else "차현승"
+		_spawn_boss(t)
+		show_banner("⚠ WARNING ⚠\n보스 %s 등장!" % nm, Color(1.0, 0.25, 0.25))
+
+
+func _spawn_boss(type: String) -> void:
+	var b := Boss.new()
+	b.arena_size = ARENA
+	b.boss_type = type
+	b.max_health = 500 + wave * 45
+	b.move_speed = 52.0
+	b.contact_damage = 20
+	b.gold_reward = 80
+	b.body_radius = 42.0
+	b.sprite_height = 150.0
+	if type == "seoyounggyo":
+		b.texture_path = "res://assets/boss_seoyounggyo.png"
+		b.skill_cd_max = 20.0
+	else:
+		b.texture_path = "res://assets/boss_chahyeonseung.png"
+		b.skill_cd_max = 7.0
+	b.position = _random_edge_position()
+	add_child(b)
+
+
+## 서영교 스킬: 파란 몹(탱커/기본/원거리) 20마리씩 소환. 피격 시 1초 둔화.
+func spawn_blue_mobs() -> void:
+	for kind in ["basic", "tanker", "ranged"]:
+		for i in 20:
+			var e := Enemy.new()
+			e.arena_size = ARENA
+			_config_enemy(e, kind)
+			_apply_dmg_scale(e)
+			e.slow_on_hit = true
+			e.base_modulate = Color(0.55, 0.65, 1.5)
+			e.position = _random_edge_position()
+			add_child(e)
+			e.modulate = e.base_modulate
+
+
+func show_banner(text: String, color: Color) -> void:
+	if _banner_label == null:
+		return
+	_banner_label.text = text
+	_banner_label.add_theme_color_override("font_color", color)
+	_banner_time = 2.8
 
 
 func _end_wave() -> void:
@@ -102,65 +181,76 @@ func _on_shop_continue() -> void:
 
 
 func _spawn_enemy() -> void:
-	var e := Enemy.new()
-	e.arena_size = ARENA
-
 	# 3% chance: 황금 고블린 (빠르고, 안 아프고, 골드 잭팟, 7초 뒤 도망).
 	if _rng.randf() < 0.03:
-		e.max_health = 24 + wave * 2
-		e.move_speed = 440.0
-		e.contact_damage = 0
-		e.gold_reward = 25
-		e.body_radius = 18.0
-		e.color = Color(1.0, 0.85, 0.20)
-		e.texture_path = "res://assets/goblin.png"
-		e.sprite_height = 88.0
-		e.wander = true
-		e.flee_after = 7.0
-		e.position = _random_edge_position()
-		add_child(e)
+		var g := Enemy.new()
+		g.arena_size = ARENA
+		g.max_health = 24 + wave * 2
+		g.move_speed = 440.0
+		g.contact_damage = 0
+		g.gold_reward = 25
+		g.body_radius = 18.0
+		g.color = Color(1.0, 0.85, 0.20)
+		g.texture_path = "res://assets/goblin.png"
+		g.sprite_height = 88.0
+		g.wander = true
+		g.flee_after = 7.0
+		g.position = _random_edge_position()
+		add_child(g)
 		return
 
-	# Spawn mix: basic 50% / tanker 25% / ranged 25%.
 	var roll := _rng.randf()
-	if roll < 0.50:
-		e.max_health = 16 + wave * 4
-		e.move_speed = 88.0 + float(wave) * 2.0
-		e.contact_damage = 8
-		e.gold_reward = 1
-		e.body_radius = 14.0
-		e.color = Color(0.90, 0.30, 0.30)
-		e.texture_path = "res://assets/mob_basic.png"
-		e.sprite_height = 54.0
-	elif roll < 0.75:
-		e.max_health = 55 + wave * 9
-		e.move_speed = 62.0
-		e.contact_damage = 14
-		e.gold_reward = 3
-		e.body_radius = 20.0
-		e.color = Color(0.62, 0.24, 0.55)
-		e.texture_path = "res://assets/mob_tanker.png"
-		e.sprite_height = 72.0
-	else:
-		e.max_health = 22 + wave * 4
-		e.move_speed = 74.0
-		e.contact_damage = 6
-		e.gold_reward = 2
-		e.body_radius = 15.0
-		e.color = Color(0.35, 0.55, 0.95)
-		e.texture_path = "res://assets/mob_ranged.png"
-		e.sprite_height = 66.0
-		e.ranged = true
-		e.prefer_range = 300.0
-		e.fire_interval = 2.0
-		e.projectile_damage = 7 + int(wave / 2)
-		e.projectile_speed = 250.0
+	var kind := "basic" if roll < 0.50 else ("tanker" if roll < 0.75 else "ranged")
+	var e := Enemy.new()
+	e.arena_size = ARENA
+	_config_enemy(e, kind)
+	_apply_dmg_scale(e)
+	e.position = _random_edge_position()
+	add_child(e)
+
+
+## Configure an enemy's base stats for a given kind (basic / tanker / ranged).
+func _config_enemy(e: Enemy, kind: String) -> void:
+	match kind:
+		"tanker":
+			e.max_health = 55 + wave * 9
+			e.move_speed = 62.0
+			e.contact_damage = 14
+			e.gold_reward = 3
+			e.body_radius = 20.0
+			e.color = Color(0.62, 0.24, 0.55)
+			e.texture_path = "res://assets/mob_tanker.png"
+			e.sprite_height = 72.0
+		"ranged":
+			e.max_health = 22 + wave * 4
+			e.move_speed = 74.0
+			e.contact_damage = 6
+			e.gold_reward = 2
+			e.body_radius = 15.0
+			e.color = Color(0.35, 0.55, 0.95)
+			e.texture_path = "res://assets/mob_ranged.png"
+			e.sprite_height = 66.0
+			e.ranged = true
+			e.prefer_range = 300.0
+			e.fire_interval = 2.0
+			e.projectile_damage = 7 + int(wave / 2)
+			e.projectile_speed = 250.0
+		_:  # basic
+			e.max_health = 16 + wave * 4
+			e.move_speed = 88.0 + float(wave) * 2.0
+			e.contact_damage = 8
+			e.gold_reward = 1
+			e.body_radius = 14.0
+			e.color = Color(0.90, 0.30, 0.30)
+			e.texture_path = "res://assets/mob_basic.png"
+			e.sprite_height = 54.0
+
+
+func _apply_dmg_scale(e: Enemy) -> void:
 	# 웨이브마다 몹 데미지 +5%.
 	var dmg_scale := 1.0 + 0.05 * float(wave - 1)
 	e.contact_damage = int(round(float(e.contact_damage) * dmg_scale))
 	e.projectile_damage = int(round(float(e.projectile_damage) * dmg_scale))
-	e.position = _random_edge_position()
-	add_child(e)
 
 
 func _random_edge_position() -> Vector2:
@@ -284,6 +374,11 @@ func _build_hud() -> void:
 	_wave_label.add_theme_color_override("font_color", Color(0.9, 0.9, 0.95))
 	_timer_label = _centered_label(layer, 40, 34)
 
+	# --- Boss warning banner ---
+	_banner_label = _centered_label(layer, 34, 150)
+	_banner_label.add_theme_color_override("font_color", Color(1.0, 0.25, 0.25))
+	_banner_label.visible = false
+
 	# --- Big center message (wave clear / game over) ---
 	_center_label = Label.new()
 	_center_label.add_theme_font_override("font", _font_display)
@@ -332,7 +427,10 @@ func _update_hud() -> void:
 	_wave_label.text = "WAVE %d" % wave
 	match state:
 		State.WAVE:
-			_timer_label.text = str(int(ceil(maxf(timer, 0.0))))
+			if _boss_wave:
+				_timer_label.text = "보스 %d" % get_tree().get_nodes_in_group("boss").size()
+			else:
+				_timer_label.text = str(int(ceil(maxf(timer, 0.0))))
 		_:
 			_timer_label.text = ""
 

@@ -10,7 +10,7 @@ const STAT_ITEMS := [
 	{"id": "tricep", "name": "삼두근", "desc": "데미지 +5%", "icon": "res://assets/stat_tricep.png"},
 	{"id": "leg", "name": "다리", "desc": "이동속도 +3%", "icon": "res://assets/stat_leg2.png"},
 	{"id": "heart", "name": "심장", "desc": "최대 체력 +5%", "icon": "res://assets/stat_heart.png"},
-	{"id": "spine", "name": "척추", "desc": "방어력 +5", "icon": "res://assets/stat_spine.png"},
+	{"id": "spine", "name": "척추", "desc": "방어력 +1", "icon": "res://assets/stat_spine.png"},
 	{"id": "tooth", "name": "이빨", "desc": "흡혈 +1%", "icon": "res://assets/stat_tooth.png"},
 	{"id": "monkey", "name": "쌀숭이", "desc": "추가 골드 +1", "icon": "res://assets/stat_monkey.png"},
 ]
@@ -88,10 +88,12 @@ func _stat_offer() -> Dictionary:
 		"icon": s["icon"], "price": _price(14, 3, 10), "sold": false}
 
 
-## 쌀숭이(추가 골드)는 5회(=+5)까지만 등장.
+## 최대치에 도달한 능력치는 상점에서 제외 (쌀숭이/척추/이빨 = 5 max).
 func _stat_allowed(item: Dictionary) -> bool:
-	if item["id"] == "monkey" and _player.stat_bonus_gold >= 5:
-		return false
+	match item["id"]:
+		"monkey": return _player.stat_bonus_gold < 5
+		"spine": return _player.stat_armor < 5
+		"tooth": return _player.stat_lifesteal < 5.0
 	return true
 
 

@@ -41,6 +41,17 @@ func _fire(target: Node2D) -> void:
 				e.take_damage(dmg)
 			if e.has_method("apply_stun"):
 				e.apply_stun(0.3)
+	# 만렙: 처음처럼 탄환도 함께 발사.
+	if level >= Weapon.MAX_LEVEL:
+		for i in range(pellet_count):
+			var t := 0.0
+			if pellet_count > 1:
+				t = float(i) / float(pellet_count - 1) - 0.5
+			var ang := base_angle + deg_to_rad(spread_degrees) * t
+			var b := Bullet.new()
+			b.setup(Vector2.RIGHT.rotated(ang), dmg)
+			b.global_position = global_position
+			get_tree().current_scene.add_child(b)
 	_flash = 0.14
 	_flash_angle = base_angle
 	queue_redraw()
