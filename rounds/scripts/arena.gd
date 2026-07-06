@@ -1,6 +1,8 @@
 extends Node2D
-## 대결 무대 + 라운드 진행 관리자.
-## 벽/발판을 만들고 두 플레이어를 배치하며, 죽음·승패·3판 2선승·카드 선택을 처리한다.
+## 대결 무대 + 3단 진행 관리자.
+##  - 라운드: 죽으면 끝나는 낱개 대결.
+##  - 매치: 라운드 3판 2선승. 매치를 진 사람만 카드 1장을 고른다.
+##  - 게임: 매치 7전 4선승(4매치 먼저 이기면 게임 종료).
 
 const ARENA_SIZE := Vector2(1152, 648)
 const WALL := 40.0
@@ -12,15 +14,18 @@ const P2_SPAWN := Vector2(872, 420)
 const P1_COLOR := Color(0.30, 0.65, 1.0)   # 파랑
 const P2_COLOR := Color(1.0, 0.45, 0.40)   # 빨강
 
-const WIN_SCORE := 2      ## 3판 2선승
-const MAX_ROUNDS := 5
+const ROUND_WIN_SCORE := 2   ## 매치 안에서: 라운드 2승 = 매치 승리(3판 2선승)
+const MATCH_WIN_SCORE := 4   ## 게임 전체: 매치 4승 = 게임 승리(7전 4선승)
+const MAX_MATCHES := 7
 
 var _local_player: Player
 var _remote_player: Player
 
-var my_score: int = 0
-var opp_score: int = 0
-var round_num: int = 1
+var my_round_wins: int = 0    ## 이번 매치 안에서의 라운드 승수 (0~2)
+var opp_round_wins: int = 0
+var my_match_score: int = 0   ## 게임 전체에서 이긴 매치 수 (0~4)
+var opp_match_score: int = 0
+var match_num: int = 1
 var _round_active: bool = true
 var _game_over: bool = false
 
@@ -142,30 +147,49 @@ func _on_local_died() -> void:
 	_end_round(false)                    # 나는 졌다
 
 
+## 라운드(낱개 대결) 하나가 끝났을 때. 매치 승부가 안 났으면 카드 없이 바로 다음
+## 라운드로, 매치 승부가 났으면 _end_match() 로 넘어간다.
 func _end_round(i_won: bool) -> void:
 	if not _round_active:
 		return
 	_round_active = false
 
 	if i_won:
-		my_score += 1
+		my_round_wins += 1
 	else:
-		opp_score += 1
-	_update_score_label()
+		opp_round_wins += 1
 	_freeze_players()
 
-	if my_score >= WIN_SCORE or opp_score >= WIN_SCORE or round_num >= MAX_ROUNDS:
-		_game_over = true
-		var msg := "무승부"
-		if my_score > opp_score:
-			msg = "최종 승리!"
-		elif opp_score > my_score:
-			msg = "패배..."
-		_show_banner(msg + "\n(" + str(my_score) + " : " + str(opp_score) + ")")
+	if my_round_wins >= ROUND_WIN_SCORE or opp_round_wins >= ROUND_WIN_SCORE:
+		_end_match(my_round_wins > opp_round_wins)
 		return
 
-	if i_won and Net.active:
-		_show_banner("이겼다! 상대가 카드를 고르는 중...")
+	_update_score_label()
+	_show_banner(("이겼다!" if i_won else "졌다...") + "\n이번 매치 " + str(my_round_wins) + " : " + str(opp_round_wins))
+	await get_tree().create_timer(1.2).timeout
+	_next_round_in_match()
+
+
+## 매치(3판 2선승) 하나가 끝났을 때. 진 사람만 카드를 고른다.
+func _end_match(did_i_win_match: bool) -> void:
+	if did_i_win_match:
+		my_match_score += 1
+	else:
+		opp_match_score += 1
+	_update_score_label()
+
+	if my_match_score >= MATCH_WIN_SCORE or opp_match_score >= MATCH_WIN_SCORE or match_num >= MAX_MATCHES:
+		_game_over = true
+		var msg := "무승부"
+		if my_match_score > opp_match_score:
+			msg = "최종 승리!"
+		elif opp_match_score > my_match_score:
+			msg = "패배..."
+		_show_banner(msg + "\n(매치 스코어 " + str(my_match_score) + " : " + str(opp_match_score) + ")")
+		return
+
+	if did_i_win_match and Net.active:
+		_show_banner("매치 승리!\n상대가 카드를 고르는 중...")
 	else:
 		_show_card_select()
 
@@ -174,11 +198,24 @@ func _on_peer_ready() -> void:
 	if _round_active or _game_over:
 		return
 	_hide_banner()
-	_next_round()
+	_next_match()
 
 
-func _next_round() -> void:
-	round_num += 1
+## 매치 안에서 라운드만 새로 시작(카드 없음, 점수 유지).
+func _next_round_in_match() -> void:
+	_start_new_round()
+
+
+## 매치가 끝나 다음 매치로 넘어감(라운드 승수 초기화, 매치 번호 +1).
+func _next_match() -> void:
+	match_num += 1
+	my_round_wins = 0
+	opp_round_wins = 0
+	_update_score_label()
+	_start_new_round()
+
+
+func _start_new_round() -> void:
 	_hide_banner()
 	_clear_bullets()
 	if _local_player:
@@ -209,10 +246,10 @@ func _show_card_select() -> void:
 	var offer: Array = pool.slice(0, mini(3, pool.size()))
 
 	if offer.is_empty():
-		# 이미 카드를 전부 가지고 있으면 그냥 다음 라운드로
+		# 이미 카드를 전부 가지고 있으면 그냥 다음 매치로
 		if Net.active:
 			Net.send_event({"event": "ready"})
-		_next_round()
+		_next_match()
 		return
 
 	var portrait: Texture2D = load(Characters.get_by_id(Net.my_character)["texture"])
@@ -231,7 +268,7 @@ func _on_card_chosen(id: String) -> void:
 	if Net.active:
 		Net.send_event({"event": "ready"})
 	await get_tree().create_timer(0.4).timeout
-	_next_round()
+	_next_match()
 
 
 # --- UI ---
@@ -258,7 +295,10 @@ func _build_ui() -> void:
 
 func _update_score_label() -> void:
 	if _score_label:
-		_score_label.text = "나 %d : %d 상대   (라운드 %d)" % [my_score, opp_score, round_num]
+		_score_label.text = (
+			"매치 %d/%d   이번 매치 나 %d : %d 상대\n게임 스코어  나 %d : %d 상대"
+			% [match_num, MAX_MATCHES, my_round_wins, opp_round_wins, my_match_score, opp_match_score]
+		)
 
 
 func _show_banner(text: String) -> void:

@@ -36,7 +36,7 @@ func setup(cards: Array, portrait_tex: Texture2D) -> void:
 	vb.add_child(top_spacer)
 
 	var title := Label.new()
-	title.text = "라운드 패배 — 능력치 카드 선택"
+	title.text = "매치 패배 — 능력치 카드 선택"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_size_override("font_size", 26)
 	vb.add_child(title)
