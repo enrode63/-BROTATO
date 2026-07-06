@@ -5,6 +5,9 @@ extends Weapon
 
 const HALF_ANGLE_DEG := 26.0
 
+@export var pellet_count: int = 5      ## 만렙에서 함께 발사되는 탄환 수
+@export var spread_degrees: float = 32.0
+
 var _half_angle: float = deg_to_rad(HALF_ANGLE_DEG)
 var _flash: float = 0.0
 var _flash_angle: float = 0.0
