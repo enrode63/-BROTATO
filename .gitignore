@@ -4,6 +4,9 @@
 # CI build output
 /build/
 
+# Node.js (rounds 중계 서버)
+node_modules/
+
 # OS / editor cruft
 .DS_Store
 Thumbs.db

@@ -36,6 +36,18 @@ jobs:
           mkdir -v -p build/web
           godot --headless --export-release "Web" build/web/index.html
 
+      # --- rounds (온라인 대전) 프로젝트를 /rounds/ 하위로 함께 빌드 ---
+      - name: Import rounds assets
+        run: |
+          cd rounds
+          godot --headless --import
+
+      - name: Export rounds Web build
+        run: |
+          mkdir -v -p build/web/rounds
+          cd rounds
+          godot --headless --export-release "Web" ../build/web/rounds/index.html
+
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
