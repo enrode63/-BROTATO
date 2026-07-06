@@ -38,7 +38,10 @@ func _ready() -> void:
 
 
 func _draw() -> void:
-	draw_circle(Vector2.ZERO, _radius, Color(1.0, 0.9, 0.35))
+	# 팀(쏜 사람) 색으로 그려서 서로 헷갈리지 않게 한다.
+	var col: Color = shooter.color if shooter else Color(1.0, 0.9, 0.35)
+	draw_circle(Vector2.ZERO, _radius, col)
+	draw_arc(Vector2.ZERO, _radius, 0.0, TAU, 12, Color(1, 1, 1, 0.55), 1.2)
 
 
 func _physics_process(delta: float) -> void:

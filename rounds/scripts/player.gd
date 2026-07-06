@@ -103,13 +103,40 @@ func _draw() -> void:
 	_draw_health_bar()
 
 
+const HP_SEGMENTS := 10
+const HP_SEG_W := 5.0
+const HP_SEG_H := 9.0
+const HP_SEG_GAP := 1.5
+const HP_HEART_R := 6.0
+const HP_RED := Color(0.82, 0.14, 0.16)
+const HP_EMPTY := Color(0.16, 0.16, 0.19, 0.95)
+
+
+## 하트 아이콘 + 칸으로 나뉜 픽셀풍 체력바(원작 대신 코드로 그린 형태).
 func _draw_health_bar() -> void:
-	var w := 42.0
-	var h := 6.0
-	var y := -RADIUS - 14.0
-	var frac := clampf(float(health) / float(max_health), 0.0, 1.0)
-	draw_rect(Rect2(-w / 2.0, y, w, h), Color(0, 0, 0, 0.55))
-	draw_rect(Rect2(-w / 2.0, y, w * frac, h), Color(0.35, 0.9, 0.45))
+	var total_w := HP_SEGMENTS * (HP_SEG_W + HP_SEG_GAP) - HP_SEG_GAP
+	var y := -RADIUS - 22.0
+	var start_x := -total_w / 2.0
+
+	_draw_heart(Vector2(start_x - HP_HEART_R * 1.6, y + HP_SEG_H * 0.5), HP_HEART_R)
+
+	var filled := int(ceil(clampf(float(health) / float(max_health), 0.0, 1.0) * HP_SEGMENTS))
+	for i in HP_SEGMENTS:
+		var seg_x := start_x + i * (HP_SEG_W + HP_SEG_GAP)
+		var col := HP_RED if i < filled else HP_EMPTY
+		draw_rect(Rect2(seg_x, y, HP_SEG_W, HP_SEG_H), col)
+		draw_rect(Rect2(seg_x, y, HP_SEG_W, HP_SEG_H), Color(0, 0, 0, 0.9), false, 1.0)
+
+
+func _draw_heart(center: Vector2, r: float) -> void:
+	draw_circle(center + Vector2(-r * 0.5, -r * 0.3), r * 0.62, HP_RED)
+	draw_circle(center + Vector2(r * 0.5, -r * 0.3), r * 0.62, HP_RED)
+	var pts := PackedVector2Array([
+		center + Vector2(-r * 1.05, -r * 0.1),
+		center + Vector2(r * 1.05, -r * 0.1),
+		center + Vector2(0, r * 1.1),
+	])
+	draw_polygon(pts, PackedColorArray([HP_RED]))
 
 
 func _physics_process(delta: float) -> void:
@@ -184,6 +211,7 @@ func _shoot() -> void:
 	var stats := _current_bullet_stats()
 	for d in dirs:
 		_spawn_bullet(muzzle, d, stats)
+	_spawn_muzzle_flash(muzzle, _aim)
 
 	if Net.active:
 		var dirs_packed := []
@@ -194,7 +222,15 @@ func _shoot() -> void:
 		payload["x"] = muzzle.x
 		payload["y"] = muzzle.y
 		payload["dirs"] = dirs_packed
+		payload["aim"] = [_aim.x, _aim.y]
 		Net.send_event(payload)
+
+
+func _spawn_muzzle_flash(pos: Vector2, dir: Vector2) -> void:
+	var fx := MuzzleFlash.new()
+	fx.global_position = pos
+	fx.rotation = dir.angle()
+	get_parent().add_child(fx)
 
 
 func _fire_directions() -> Array:

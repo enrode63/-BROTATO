@@ -114,6 +114,15 @@ func _on_peer_event(data: Dictionary) -> void:
 				for pair in data.get("dirs", []):
 					var d := Vector2(float(pair[0]), float(pair[1]))
 					_remote_player.spawn_remote_bullet(pos, d, stats)
+
+				var aim_arr: Array = data.get("aim", [])
+				var aim_dir := Vector2.RIGHT
+				if aim_arr.size() >= 2:
+					aim_dir = Vector2(float(aim_arr[0]), float(aim_arr[1]))
+				var fx := MuzzleFlash.new()
+				fx.global_position = pos
+				fx.rotation = aim_dir.angle()
+				add_child(fx)
 		"dead":
 			_end_round(true)
 		"ready":
