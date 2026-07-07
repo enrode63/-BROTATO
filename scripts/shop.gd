@@ -25,6 +25,11 @@ const THROWABLE_ITEMS := [
 	{"id": "flashbang", "name": "섬광탄", "desc": "전체 3초 속박 (2키)", "icon": "res://assets/throw_flash.png"},
 	{"id": "molotov", "name": "화'염병'", "desc": "범위 지속 화염 (3키)", "icon": "res://assets/throw_molotov.png"},
 ]
+const PET_ITEMS := [
+	{"id": "yunho",   "name": "윤호 펫",  "desc": "주기적 광역 폭발 딜",   "icon": "res://assets/pet_yunho.png"},
+	{"id": "jaehi",   "name": "재희 펫",  "desc": "근접 창 공격",           "icon": "res://assets/pet_jaehi.png"},
+	{"id": "hyunjun", "name": "현준 펫",  "desc": "주변 적 최대 3마리 매혹", "icon": "res://assets/pet_hyunjun.png"},
+]
 
 var _player: Player
 var _wave: int = 1
@@ -73,7 +78,17 @@ func _throwable_offer() -> Dictionary:
 		"icon": t["icon"], "amount": 2, "price": _price(28, 3, 10), "sold": false}
 
 
+func _pet_offer() -> Dictionary:
+	var p: Dictionary = PET_ITEMS.pick_random()
+	var price: int = mini(2000, 500 * (_player.pets.size() + 1))
+	return {"kind": "pet", "id": p["id"], "name": p["name"], "desc": p["desc"],
+		"icon": p["icon"], "price": price, "sold": false}
+
+
 func _stat_offer() -> Dictionary:
+	# 3% 확률로 펫 등장 (최대 4마리까지)
+	if _player.pets.size() < 4 and randf() < 0.03:
+		return _pet_offer()
 	if randf() < 0.16:
 		return {"kind": "heal", "id": "heal", "name": "체력 회복", "desc": "HP 25% 회복",
 			"icon": "res://assets/stat_heal.png", "price": _price(22, 2, 1), "sold": false}
@@ -277,6 +292,10 @@ func _rebuild_inventory() -> void:
 		if n <= 0:
 			continue
 		_inv_row.add_child(_throwable_slot(t["icon"], n))
+	# pets (non-draggable)
+	for pet in _player.pets:
+		if is_instance_valid(pet):
+			_inv_row.add_child(_pet_inv_slot(pet))
 
 
 func _throwable_slot(icon: String, count: int) -> Panel:
@@ -311,11 +330,35 @@ func _throwable_slot(icon: String, count: int) -> Panel:
 	return p
 
 
+func _pet_inv_slot(pet: Node2D) -> Panel:
+	var p := Panel.new()
+	p.custom_minimum_size = Vector2(66, 66)
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.16, 0.10, 0.20, 1.0)
+	sb.set_corner_radius_all(8)
+	sb.set_border_width_all(2)
+	sb.border_color = Color(0.98, 0.52, 0.98, 0.7)
+	p.add_theme_stylebox_override("panel", sb)
+	var tex_path: String = pet.get("texture_path") if "texture_path" in pet else ""
+	if tex_path != "":
+		var art := TextureRect.new()
+		art.texture = load(tex_path)
+		art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		art.set_anchors_preset(Control.PRESET_FULL_RECT)
+		art.offset_left = 6; art.offset_top = 6
+		art.offset_right = -6; art.offset_bottom = -6
+		art.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		p.add_child(art)
+	return p
+
+
 func _kind_color(kind: String) -> Color:
 	match kind:
 		"weapon": return Color(0.95, 0.55, 0.30)
 		"throwable": return Color(0.95, 0.40, 0.35)
 		"heal": return Color(0.35, 0.85, 0.45)
+		"pet": return Color(0.98, 0.52, 0.98)
 		_: return Color(0.55, 0.65, 1.0)
 
 
@@ -336,6 +379,8 @@ func _on_buy(index: int) -> void:
 		"throwable":
 			_player.add_throwable(o["id"], int(o.get("amount", 2)))
 			_rebuild_inventory()
+		"pet":
+			_player.acquire_pet(o["id"])
 		_:
 			_player.apply_upgrade(o["id"])
 	o["sold"] = true
@@ -388,6 +433,9 @@ func _refresh() -> void:
 		elif o["kind"] == "weapon" and not _player.can_acquire_weapon(o["id"]):
 			btn.text = "슬롯 가득"
 			btn.disabled = true
+		elif o["kind"] == "pet" and _player.pets.size() >= 4:
+			btn.text = "펫 가득"
+			btn.disabled = true
 		else:
 			btn.text = "구매 %d" % int(o["price"])
 			btn.disabled = GameState.gold < int(o["price"])
@@ -404,5 +452,6 @@ func _update_stats() -> void:
 		"추가 골드    +%d" % _player.stat_bonus_gold,
 		"",
 		"무기         %d / %d" % [_player.weapons.size(), Player.MAX_WEAPONS],
+		"펫           %d / 4" % _player.pets.size(),
 		"경험치       %d" % GameState.xp,
 	])

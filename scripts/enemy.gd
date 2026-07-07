@@ -43,6 +43,8 @@ var _stun: float = 0.0
 var _bleed_dps: float = 0.0
 var _bleed_time: float = 0.0
 var _bleed_tick: float = 0.0
+var _charm_time: float = 0.0
+var _charm_target: Vector2 = Vector2.ZERO
 var _fleeing: bool = false
 var _wander_target: Vector2 = Vector2.ZERO
 var _repick_cd: float = 0.0
@@ -99,6 +101,18 @@ func _physics_process(delta: float) -> void:
 		move_and_slide()
 		_knockback = _knockback.move_toward(Vector2.ZERO, KNOCKBACK_DECAY * delta)
 		if _stun <= 0.0:
+			modulate = base_modulate
+		return
+
+	# 매혹(현준 펫): 일시적으로 플레이어 대신 펫 위치로 이동
+	if _charm_time > 0.0:
+		_charm_time -= delta
+		modulate = Color(1.3, 0.55, 1.3)
+		var dir_to_charm := (_charm_target - global_position).normalized()
+		velocity = dir_to_charm * move_speed + _knockback
+		move_and_slide()
+		_knockback = _knockback.move_toward(Vector2.ZERO, KNOCKBACK_DECAY * delta)
+		if _charm_time <= 0.0:
 			modulate = base_modulate
 		return
 
@@ -189,6 +203,16 @@ func _arena_rect() -> Rect2:
 func _random_arena_point() -> Vector2:
 	var m := 40.0
 	return Vector2(_rng.randf_range(m, arena_size.x - m), _rng.randf_range(m, arena_size.y - m))
+
+
+func apply_charm(target: Vector2, duration: float) -> void:
+	_charm_target = target
+	_charm_time = maxf(_charm_time, duration)
+
+
+func set_charm_target(pos: Vector2) -> void:
+	if _charm_time > 0.0:
+		_charm_target = pos
 
 
 func apply_knockback(impulse: Vector2) -> void:

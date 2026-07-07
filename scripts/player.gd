@@ -49,6 +49,7 @@ var stat_range: float = 0.0        ## 눈: 사거리 +12px씩
 var stat_lifesteal: float = 0.0    ## 이빨: 흡혈 +1%씩
 var stat_bonus_gold: int = 0       ## 쌀숭이: 추가 골드 +1씩
 var weapons: Array = []
+var pets: Array = []
 var throwable_counts: Dictionary = {"grenade": 0, "flashbang": 0, "molotov": 0}
 var input_enabled: bool = true     ## false while the shop is open
 var _start_weapon_id: String = "camera"
@@ -236,6 +237,23 @@ func lifesteal_heal(damage_dealt: int) -> void:
 		_lifesteal_accum -= float(whole)
 		health = min(max_health, health + whole)
 		health_changed.emit(health, max_health)
+
+
+func acquire_pet(id: String) -> bool:
+	var p: Pet = _make_pet(id)
+	if p == null:
+		return false
+	pets.append(p)
+	add_child(p)
+	return true
+
+
+func _make_pet(id: String) -> Pet:
+	match id:
+		"yunho":   return PetYunho.new()
+		"jaehi":   return PetJaehi.new()
+		"hyunjun": return PetHyunjun.new()
+	return null
 
 
 func add_throwable(id: String, count: int) -> void:
