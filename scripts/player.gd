@@ -275,8 +275,17 @@ func _throw(id: String) -> void:
 		return
 	throwable_counts[id] -= 1
 	var t := Throwable.new()
-	t.setup(id, global_position, get_global_mouse_position())
+	var target := get_global_mouse_position()
+	if GameState.is_mobile:
+		var nearest := _nearest_enemy_within(900.0)
+		target = nearest.global_position if nearest != null else global_position + Vector2(0.0, -180.0)
+	t.setup(id, global_position, target)
 	get_tree().current_scene.add_child(t)
+
+
+## 모바일 HUD 버튼에서 직접 호출 가능한 공개 메서드.
+func throw_item(id: String) -> void:
+	_throw(id)
 
 
 func _physics_process(delta: float) -> void:
@@ -359,6 +368,8 @@ func _process(delta: float) -> void:
 
 
 func _input_direction() -> Vector2:
+	if GameState.is_mobile:
+		return GameState.joystick_dir
 	var dir := Vector2.ZERO
 	if Input.is_physical_key_pressed(KEY_W) or Input.is_physical_key_pressed(KEY_UP):
 		dir.y -= 1.0

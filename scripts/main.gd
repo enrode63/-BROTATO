@@ -30,6 +30,8 @@ var _boss_spawn_timer: float = 0.0
 var _single_boss_index: int = 0
 var _banner_label: Label
 var _banner_time: float = 0.0
+var _mob_throw_btns: Dictionary = {}   ## 모바일 투척 버튼 (id → Button)
+var _mob_layer: CanvasLayer = null     ## 모바일 전용 오버레이 레이어
 
 
 func _ready() -> void:
@@ -39,6 +41,8 @@ func _ready() -> void:
 	_build_player()
 	_build_hud()
 	GameState.gold_changed.connect(func(_v: int) -> void: _update_hud())
+	if GameState.is_mobile:
+		_build_mobile_overlay()
 	_start_wave()
 
 
@@ -48,7 +52,7 @@ func _process(delta: float) -> void:
 			_process_wave(delta)
 		State.GAMEOVER:
 			if Input.is_physical_key_pressed(KEY_R):
-				get_tree().change_scene_to_file("res://scenes/character_select.tscn")
+				get_tree().change_scene_to_file("res://scenes/platform_select.tscn")
 	_update_banner(delta)
 	_update_hud()
 
@@ -445,6 +449,18 @@ func _centered_label(layer: CanvasLayer, size: int, y: float) -> Label:
 	return l
 
 
+func _update_mobile_throw_btns() -> void:
+	if player == null or not is_instance_valid(player):
+		return
+	for id in _mob_throw_btns:
+		var btn: Button = _mob_throw_btns[id]
+		var n: int = int(player.throwable_counts.get(id, 0))
+		btn.visible = n > 0
+		if n > 0:
+			var base_name: String = btn.text.split("\n")[0]
+			btn.text = base_name + "\nx%d" % n
+
+
 func _update_hud() -> void:
 	if player == null or not is_instance_valid(player):
 		return
@@ -457,6 +473,8 @@ func _update_hud() -> void:
 		_throw_boxes[id].visible = n > 0
 		_throw_labels[id].text = "x%d" % n
 	_wave_label.text = "WAVE %d" % wave
+	if GameState.is_mobile:
+		_update_mobile_throw_btns()
 	match state:
 		State.WAVE:
 			if _boss_wave and _boss_pending:
@@ -473,7 +491,85 @@ func _on_player_died() -> void:
 	state = State.GAMEOVER
 	if is_instance_valid(player):
 		player.input_enabled = false
-	_center_label.text = "GAME OVER\n\n도달 웨이브: %d\n처치한 몹: %d\n보스 처치: %d\n\nR 키: 시작 화면으로" % [
-		wave, GameState.kills, GameState.boss_kills]
+	var restart_hint := "R 키: 시작 화면으로" if not GameState.is_mobile else ""
+	_center_label.text = "GAME OVER\n\n도달 웨이브: %d\n처치한 몹: %d\n보스 처치: %d\n\n%s" % [
+		wave, GameState.kills, GameState.boss_kills, restart_hint]
 	for e in get_tree().get_nodes_in_group("enemy"):
 		e.set_physics_process(false)
+	if GameState.is_mobile:
+		_add_mobile_restart_button()
+
+
+func _add_mobile_restart_button() -> void:
+	var layer := CanvasLayer.new()
+	layer.layer = 20
+	add_child(layer)
+	var font_d := load("res://fonts/BlackHanSans-Regular.ttf") as Font
+	var btn := Button.new()
+	btn.text = "시작 화면으로"
+	btn.add_theme_font_override("font", font_d)
+	btn.add_theme_font_size_override("font_size", 28)
+	btn.custom_minimum_size = Vector2(320, 70)
+	btn.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	btn.position = Vector2(-160, -110)
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.22, 0.28, 0.55)
+	sb.set_corner_radius_all(16)
+	sb.set_border_width_all(3)
+	sb.border_color = Color(0.50, 0.65, 1.0)
+	btn.add_theme_stylebox_override("normal", sb)
+	var sbh := sb.duplicate() as StyleBoxFlat
+	sbh.bg_color = Color(0.32, 0.40, 0.75)
+	btn.add_theme_stylebox_override("hover", sbh)
+	btn.add_theme_stylebox_override("pressed", sbh)
+	btn.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/platform_select.tscn"))
+	layer.add_child(btn)
+
+
+# --- 모바일 전용 오버레이 --------------------------------------------------
+
+func _build_mobile_overlay() -> void:
+	_mob_layer = CanvasLayer.new()
+	_mob_layer.layer = 15
+	add_child(_mob_layer)
+
+	# 가상 조이스틱
+	var joy := VirtualJoystick.new()
+	_mob_layer.add_child(joy)
+
+	# 투척물 버튼 (화면 오른쪽 하단)
+	var font_d := load("res://fonts/BlackHanSans-Regular.ttf") as Font
+	var vp := get_viewport_rect().size
+	var tdefs := [
+		["grenade",  "수류탄", Color(0.95, 0.70, 0.25)],
+		["flashbang","섬광탄", Color(0.85, 0.85, 0.95)],
+		["molotov",  "화염병", Color(0.95, 0.45, 0.15)],
+	]
+	var bx := vp.x - 80.0
+	var by := vp.y - 76.0
+	for i in tdefs.size():
+		var def: Array = tdefs[i]
+		var id: String = def[0]
+		var btn := Button.new()
+		btn.text = def[1]
+		btn.add_theme_font_override("font", font_d)
+		btn.add_theme_font_size_override("font_size", 14)
+		btn.custom_minimum_size = Vector2(68, 68)
+		btn.size = Vector2(68, 68)
+		btn.position = Vector2(bx - float(i) * 78.0, by)
+		var sb := StyleBoxFlat.new()
+		sb.bg_color = (def[2] as Color).darkened(0.55)
+		sb.set_corner_radius_all(34)
+		sb.set_border_width_all(3)
+		sb.border_color = def[2]
+		btn.add_theme_stylebox_override("normal", sb)
+		var sbh := sb.duplicate() as StyleBoxFlat
+		sbh.bg_color = (def[2] as Color).darkened(0.30)
+		btn.add_theme_stylebox_override("hover", sbh)
+		btn.add_theme_stylebox_override("pressed", sbh)
+		btn.pressed.connect(func(): player.throw_item(id))
+		_mob_layer.add_child(btn)
+		_mob_throw_btns[id] = btn
+
+	# HUD 투척 카운터를 _update_hud에서 모바일 버튼에도 반영
+	_update_mobile_throw_btns()

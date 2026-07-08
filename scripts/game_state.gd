@@ -15,6 +15,8 @@ var selected_character_id: String = "ssumawang"
 var reroll_count: int = 0
 var kills: int = 0
 var boss_kills: int = 0
+var is_mobile: bool = false   ## set on platform-select screen, persists across waves
+var joystick_dir: Vector2 = Vector2.ZERO  ## updated by VirtualJoystick every frame
 
 
 func register_kill(is_boss: bool = false) -> void:
