@@ -63,3 +63,4 @@ func _draw() -> void:
 	# boss aura ring
 	draw_circle(Vector2(0, body_radius * 0.6), body_radius, Color(0, 0, 0, 0.28))
 	draw_arc(Vector2.ZERO, body_radius * 1.15, 0.0, TAU, 40, Color(0.9, 0.15, 0.15, 0.7), 3.0)
+	_draw_health_bar()

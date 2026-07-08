@@ -270,3 +270,23 @@ func _draw() -> void:
 		# Fallback look when no image is set.
 		draw_circle(Vector2.ZERO, body_radius, color)
 		draw_arc(Vector2.ZERO, body_radius, 0.0, TAU, 20, color.darkened(0.4), 2.0)
+	_draw_health_bar()
+
+
+func _draw_health_bar() -> void:
+	var bar_w := maxf(body_radius * 3.2, 38.0)
+	var bar_h := 5.0
+	var bar_y: float
+	if _has_sprite:
+		bar_y = -(sprite_height * 0.52) - bar_h - 3.0
+	else:
+		bar_y = -body_radius - bar_h - 6.0
+	var bx := -bar_w * 0.5
+	var hp_ratio := clampf(float(health) / float(max_health), 0.0, 1.0)
+	# 테두리
+	draw_rect(Rect2(bx - 1.0, bar_y - 1.0, bar_w + 2.0, bar_h + 2.0), Color(0.0, 0.0, 0.0, 0.80), false, 1.5)
+	# 배경
+	draw_rect(Rect2(bx, bar_y, bar_w, bar_h), Color(0.08, 0.08, 0.08, 0.90))
+	# 체력 채우기
+	if hp_ratio > 0.0:
+		draw_rect(Rect2(bx, bar_y, bar_w * hp_ratio, bar_h), Color(0.88, 0.15, 0.15))
