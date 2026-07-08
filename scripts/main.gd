@@ -80,9 +80,11 @@ func _process_wave(delta: float) -> void:
 	timer -= delta
 	spawn_timer -= delta
 	if spawn_timer <= 0.0:
-		_spawn_enemy()
-		# 보스 웨이브엔 잡몹 스폰을 줄이고, 아니면 웨이브마다 더 빠르게.
-		spawn_timer = 2.5 if _boss_wave else maxf(0.22, 1.3 - float(wave) * 0.09)
+		# 웨이브마다 한 번에 스폰되는 몹 수 증가 (8웨이브마다 +1, 최대 3)
+		var spawn_count: int = mini(3, 1 + int(wave / 8))
+		for _i in spawn_count:
+			_spawn_enemy()
+		spawn_timer = 2.5 if _boss_wave else maxf(0.16, 1.3 - float(wave) * 0.09)
 
 	if _boss_pending:
 		_boss_spawn_timer -= delta

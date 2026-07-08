@@ -11,7 +11,6 @@ const STAT_ITEMS := [
 	{"id": "leg", "name": "다리", "desc": "이동속도 +3%", "icon": "res://assets/stat_leg2.png"},
 	{"id": "heart", "name": "심장", "desc": "최대 체력 +5%", "icon": "res://assets/stat_heart.png"},
 	{"id": "spine", "name": "척추", "desc": "방어력 +1", "icon": "res://assets/stat_spine.png"},
-	{"id": "tooth", "name": "이빨", "desc": "흡혈 +1%", "icon": "res://assets/stat_tooth.png"},
 	{"id": "monkey", "name": "쌀숭이", "desc": "추가 골드 +1", "icon": "res://assets/stat_monkey.png"},
 ]
 const WEAPON_ITEMS := [
@@ -108,7 +107,6 @@ func _stat_allowed(item: Dictionary) -> bool:
 	match item["id"]:
 		"monkey": return _player.stat_bonus_gold < 5
 		"spine": return _player.stat_armor < 5
-		"tooth": return _player.stat_lifesteal < 5.0
 	return true
 
 
