@@ -45,11 +45,33 @@ func setup(shop_ref: Shop, idx: int, icon_path: String, level: int) -> void:
 		lvl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		add_child(lvl)
 
+	# 우클릭이 없는 모바일에서도 판매할 수 있도록 탭 가능한 × 버튼 추가.
+	var sell_btn := Button.new()
+	sell_btn.text = "×"
+	sell_btn.custom_minimum_size = Vector2(20, 20)
+	sell_btn.position = Vector2(66 - 20 - 2, 2)
+	sell_btn.size = Vector2(20, 20)
+	sell_btn.focus_mode = Control.FOCUS_NONE
+	sell_btn.add_theme_font_size_override("font_size", 14)
+	sell_btn.add_theme_color_override("font_color", Color.WHITE)
+	var sb2 := StyleBoxFlat.new()
+	sb2.bg_color = Color(0.55, 0.12, 0.12, 0.85)
+	sb2.set_corner_radius_all(4)
+	sell_btn.add_theme_stylebox_override("normal", sb2)
+	sell_btn.add_theme_stylebox_override("hover", sb2)
+	sell_btn.add_theme_stylebox_override("pressed", sb2)
+	sell_btn.pressed.connect(_on_sell_pressed)
+	add_child(sell_btn)
+
 
 func _gui_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_RIGHT:
-		if shop != null and index >= 0:
-			shop.sell_weapon(index)
+		_on_sell_pressed()
+
+
+func _on_sell_pressed() -> void:
+	if shop != null and index >= 0:
+		shop.sell_weapon(index)
 
 
 func _get_drag_data(_at_position: Vector2) -> Variant:

@@ -23,9 +23,20 @@ func _process(delta: float) -> void:
 		_orbits_spawned = true
 		var p := _player()
 		if p != null:
+			# Stagger by trio (rotation offset + wider radius) so stacking multiple
+			# maxed 우람한 오이 spreads into concentric rotated triangles instead of
+			# every orb overlapping on the same spot.
+			var existing := 0
+			for n in p.get_children():
+				if n.is_in_group("orbit_cucumber"):
+					existing += 1
+			var trio_index := existing / 3
+			var angle_stagger := trio_index * (TAU / 9.0)
+			var radius_step := trio_index * 22.0
 			for i in 3:
 				var o := OrbitCucumber.new()
-				o.angle_offset = TAU * float(i) / 3.0
+				o.angle_offset = TAU * float(i) / 3.0 + angle_stagger
+				o.orbit_radius += radius_step
 				o.damage = effective_damage(10)
 				p.add_child(o)
 

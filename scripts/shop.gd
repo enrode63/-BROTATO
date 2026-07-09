@@ -166,7 +166,7 @@ func _build_ui() -> void:
 
 	# inventory (bottom-left)
 	var inv_title := Label.new()
-	inv_title.text = "인벤토리 (같은 무기 2개 드래그 = 합성 · 무기 우클릭 = 50% 판매)"
+	inv_title.text = "인벤토리 (같은 무기 2개 드래그 = 합성 · 무기 우클릭 또는 × 버튼 = 50% 판매)"
 	inv_title.add_theme_font_size_override("font_size", 17)
 	inv_title.add_theme_color_override("font_color", Color(0.75, 0.8, 0.9))
 	inv_title.position = Vector2(40, 470)

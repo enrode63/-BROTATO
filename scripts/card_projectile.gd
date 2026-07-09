@@ -1,11 +1,12 @@
 class_name CardProjectile
 extends Area2D
 ## Thrown by 트페의 카드. Colour decides the on-hit effect:
-##   GOLD = stun, BLUE = bonus XP, RED = area explosion.
+##   GOLD = stun, BLUE = highest single-target damage, RED = area explosion.
 
 enum Kind { GOLD, BLUE, RED }
 
 const EXPLOSION_RADIUS := 90.0
+const BLUE_DAMAGE_MULT := 2.0  ## BLUE trades utility for the hardest single hit
 
 var kind: int = Kind.RED
 var direction: Vector2 = Vector2.RIGHT
@@ -61,8 +62,7 @@ func _on_body_entered(body: Node) -> void:
 				body.apply_stun(3.0)
 		Kind.BLUE:
 			if body.has_method("take_damage"):
-				body.take_damage(damage)
-			GameState.add_xp(3)
+				body.take_damage(int(round(damage * BLUE_DAMAGE_MULT)))
 		Kind.RED:
 			_explode()
 	queue_free()

@@ -4,7 +4,7 @@ extends Node2D
 
 enum State { WAVE, SHOP, GAMEOVER }
 
-const ARENA := Vector2(1152, 648)
+const ARENA := Vector2(1152, 648) * 4.0
 const WAVE_DURATION := 45.0
 
 var state: int = State.WAVE
@@ -32,6 +32,8 @@ var _banner_label: Label
 var _banner_time: float = 0.0
 var _mob_throw_btns: Dictionary = {}   ## 모바일 투척 버튼 (id → Button)
 var _mob_layer: CanvasLayer = null     ## 모바일 전용 오버레이 레이어
+var _go_message_edit: LineEdit = null  ## 게임오버 화면의 랭킹 메시지 입력창
+var _go_submit_btn: Button = null      ## 게임오버 화면의 랭킹 등록 버튼
 
 
 func _ready() -> void:
@@ -123,7 +125,7 @@ func _spawn_boss(type: String) -> void:
 	var b := Boss.new()
 	b.arena_size = ARENA
 	b.boss_type = type
-	b.max_health = 2500 + wave * 225
+	b.max_health = int((2500 + wave * 225) * 0.2)  # 보스 체급 20%로 하향
 	b.move_speed = 58.0
 	b.contact_damage = 100
 	b.gold_reward = 80
@@ -182,6 +184,10 @@ func _open_shop() -> void:
 	if is_instance_valid(player):
 		player.set_physics_process(false)
 		player.input_enabled = false
+	# 모바일 조이스틱/투척 버튼이 상점 UI(이동 버튼 등) 위에 겹쳐 그려져서
+	# 탭이 가로채이던 문제 — 상점이 열린 동안은 숨긴다.
+	if _mob_layer != null:
+		_mob_layer.visible = false
 	var shop := Shop.new()
 	shop.setup(player, wave)
 	shop.continue_pressed.connect(_on_shop_continue)
@@ -192,6 +198,8 @@ func _on_shop_continue() -> void:
 	if is_instance_valid(player):
 		player.set_physics_process(true)
 		player.input_enabled = true
+	if _mob_layer != null:
+		_mob_layer.visible = true
 	_start_wave()
 
 
@@ -311,6 +319,9 @@ func _build_background() -> void:
 		ground.texture = tex
 		ground.centered = false
 		ground.z_index = -10
+		var tex_size := tex.get_size()
+		if tex_size.x > 0.0 and tex_size.y > 0.0:
+			ground.scale = ARENA / tex_size
 		add_child(ground)
 	else:
 		var bg := ColorRect.new()
@@ -325,6 +336,14 @@ func _build_player() -> void:
 	player.bounds = Rect2(Vector2.ZERO, ARENA)
 	player.died.connect(_on_player_died)
 	add_child(player)
+
+	var cam := Camera2D.new()
+	cam.limit_left = 0
+	cam.limit_top = 0
+	cam.limit_right = int(ARENA.x)
+	cam.limit_bottom = int(ARENA.y)
+	cam.current = true
+	player.add_child(cam)
 
 
 func _build_hud() -> void:
@@ -415,13 +434,20 @@ func _build_hud() -> void:
 	_banner_label.add_theme_color_override("font_color", Color(1.0, 0.25, 0.25))
 	_banner_label.visible = false
 
+	# --- Minimap (top-right) ---
+	var minimap := Minimap.new()
+	minimap.arena_size = ARENA
+	minimap.player = player
+	minimap.position = Vector2(1152.0 - Minimap.MAP_SIZE.x - 14.0, 14.0)
+	layer.add_child(minimap)
+
 	# --- Big center message (wave clear / game over) ---
 	_center_label = Label.new()
 	_center_label.add_theme_font_override("font", _font_display)
 	_center_label.add_theme_font_size_override("font_size", 44)
 	_center_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_center_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	_center_label.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_center_label.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	_center_label.position.y = 60
 	_center_label.add_theme_constant_override("outline_size", 6)
 	_center_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
 	layer.add_child(_center_label)
@@ -496,8 +522,85 @@ func _on_player_died() -> void:
 		wave, GameState.kills, GameState.boss_kills, restart_hint]
 	for e in get_tree().get_nodes_in_group("enemy"):
 		e.set_physics_process(false)
+	if _mob_layer != null:
+		_mob_layer.visible = false
+	_build_gameover_ranking_ui()
 	if GameState.is_mobile:
 		_add_mobile_restart_button()
+
+
+## 게임오버 화면에 랭킹 등록(메시지 + 도달 웨이브)과 랭킹 보기 버튼을 추가한다.
+func _build_gameover_ranking_ui() -> void:
+	var layer := CanvasLayer.new()
+	layer.layer = 20
+	add_child(layer)
+	var font_d := load("res://fonts/BlackHanSans-Regular.ttf") as Font
+
+	var msg_label := Label.new()
+	msg_label.text = "메시지 (선택, 10자 이내)"
+	msg_label.add_theme_font_size_override("font_size", 15)
+	msg_label.add_theme_color_override("font_color", Color(0.65, 0.70, 0.82))
+	msg_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	msg_label.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	msg_label.position.y = 450
+	layer.add_child(msg_label)
+
+	_go_message_edit = LineEdit.new()
+	_go_message_edit.max_length = Ranking.MAX_MESSAGE_LEN
+	_go_message_edit.placeholder_text = "예: 감자대장"
+	_go_message_edit.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_go_message_edit.position = Vector2(576.0 - 140.0, 472.0)
+	_go_message_edit.size = Vector2(280, 36)
+	layer.add_child(_go_message_edit)
+
+	_go_submit_btn = Button.new()
+	_go_submit_btn.text = "랭킹 등록"
+	_go_submit_btn.add_theme_font_override("font", font_d)
+	_go_submit_btn.add_theme_font_size_override("font_size", 18)
+	_go_submit_btn.position = Vector2(576.0 - 156.0, 514.0)
+	_go_submit_btn.size = Vector2(150, 42)
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.20, 0.45, 0.25)
+	sb.set_corner_radius_all(10)
+	_go_submit_btn.add_theme_stylebox_override("normal", sb)
+	var sbh := sb.duplicate() as StyleBoxFlat
+	sbh.bg_color = Color(0.28, 0.60, 0.34)
+	_go_submit_btn.add_theme_stylebox_override("hover", sbh)
+	_go_submit_btn.add_theme_stylebox_override("pressed", sbh)
+	_go_submit_btn.pressed.connect(_on_submit_ranking)
+	layer.add_child(_go_submit_btn)
+
+	var view_btn := Button.new()
+	view_btn.text = "랭킹 보기"
+	view_btn.add_theme_font_override("font", font_d)
+	view_btn.add_theme_font_size_override("font_size", 18)
+	view_btn.position = Vector2(576.0 - 156.0 + 150.0 + 12.0, 514.0)
+	view_btn.size = Vector2(150, 42)
+	var sb2 := StyleBoxFlat.new()
+	sb2.bg_color = Color(0.30, 0.28, 0.14)
+	sb2.set_corner_radius_all(10)
+	view_btn.add_theme_stylebox_override("normal", sb2)
+	var sb2h := sb2.duplicate() as StyleBoxFlat
+	sb2h.bg_color = Color(0.42, 0.38, 0.18)
+	view_btn.add_theme_stylebox_override("hover", sb2h)
+	view_btn.add_theme_stylebox_override("pressed", sb2h)
+	view_btn.pressed.connect(_show_ranking_screen)
+	layer.add_child(view_btn)
+
+
+func _on_submit_ranking() -> void:
+	if _go_submit_btn == null or _go_submit_btn.disabled:
+		return
+	var msg := "" if _go_message_edit == null else _go_message_edit.text
+	var rank := Ranking.submit(msg, wave, GameState.kills)
+	_go_submit_btn.disabled = true
+	_go_submit_btn.text = ("%d위 등록완료" % rank) if rank > 0 else "등록완료"
+	if _go_message_edit != null:
+		_go_message_edit.editable = false
+
+
+func _show_ranking_screen() -> void:
+	add_child(RankingScreen.new())
 
 
 func _add_mobile_restart_button() -> void:
@@ -508,10 +611,10 @@ func _add_mobile_restart_button() -> void:
 	var btn := Button.new()
 	btn.text = "시작 화면으로"
 	btn.add_theme_font_override("font", font_d)
-	btn.add_theme_font_size_override("font_size", 28)
-	btn.custom_minimum_size = Vector2(320, 70)
+	btn.add_theme_font_size_override("font_size", 24)
+	btn.custom_minimum_size = Vector2(300, 60)
 	btn.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
-	btn.position = Vector2(-160, -110)
+	btn.position = Vector2(-150, -72)
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = Color(0.22, 0.28, 0.55)
 	sb.set_corner_radius_all(16)

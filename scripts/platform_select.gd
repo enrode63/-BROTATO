@@ -38,6 +38,25 @@ func _build_ui() -> void:
 	_make_card(font_d, "컴퓨터 플레이", "키보드 + 마우스", false, Vector2(186, 295))
 	_make_card(font_d, "모바일 플레이", "터치 조이스틱", true,  Vector2(626, 295))
 
+	var rank_btn := Button.new()
+	rank_btn.text = "🏆 랭킹 보기"
+	rank_btn.add_theme_font_override("font", font_d)
+	rank_btn.add_theme_font_size_override("font_size", 20)
+	rank_btn.size = Vector2(180, 46)
+	rank_btn.position = Vector2((1152.0 - 180.0) / 2.0, 560.0)
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.22, 0.20, 0.10)
+	sb.set_corner_radius_all(10)
+	sb.set_border_width_all(2)
+	sb.border_color = Color(0.95, 0.75, 0.25)
+	rank_btn.add_theme_stylebox_override("normal", sb)
+	var sbh := sb.duplicate() as StyleBoxFlat
+	sbh.bg_color = Color(0.32, 0.29, 0.14)
+	rank_btn.add_theme_stylebox_override("hover", sbh)
+	rank_btn.add_theme_stylebox_override("pressed", sbh)
+	rank_btn.pressed.connect(func(): add_child(RankingScreen.new()))
+	add_child(rank_btn)
+
 
 func _make_card(font_d: Font, label: String, desc: String, mobile: bool, pos: Vector2) -> void:
 	var accent := Color(0.38, 0.58, 1.0) if not mobile else Color(0.32, 0.92, 0.58)

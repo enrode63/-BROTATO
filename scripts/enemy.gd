@@ -220,7 +220,12 @@ func apply_knockback(impulse: Vector2) -> void:
 
 
 func apply_stun(seconds: float) -> void:
-	_stun = maxf(_stun, seconds)
+	# While already stunned, ignore new stun calls instead of refreshing the
+	# timer — otherwise repeated hits (e.g. back-to-back GOLD cards) chain the
+	# stun indefinitely and never let it expire.
+	if _stun > 0.0:
+		return
+	_stun = seconds
 
 
 func apply_bleed(dps: float, duration: float) -> void:

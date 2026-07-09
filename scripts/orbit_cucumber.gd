@@ -3,11 +3,11 @@ extends Node2D
 ## Spawned by a max-level 우람한 오이. Circles the player and damages any enemy
 ## it sweeps over.
 
-const HIT_RADIUS := 30.0
+const HIT_RADIUS := 36.0
 const TICK := 0.3
 
 var angle_offset: float = 0.0
-var orbit_radius: float = 78.0
+var orbit_radius: float = 120.0
 var orbit_speed: float = 2.6
 var damage: int = 12
 
